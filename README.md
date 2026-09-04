@@ -1,0 +1,98 @@
+# genkit-agent-cloud-cost-estimate
+
+AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
+Genkit Go で実装する。
+
+> **ステータス: 設計フェーズ**
+> 現在はドキュメントのみ。実装はこれから着手する。
+
+## これは何か
+
+提案・設計の初期フェーズで繰り返し発生する「AWS 構成のコスト見積もりと構成図作成」を自動化する。
+
+出力するもの:
+
+| 成果物 | 形式 | 特徴 |
+|---|---|---|
+| 見積もり | Excel（3 シート） | 金額セルがすべて**数式**。ツールを再実行せずに前提を変えて試算できる |
+| 構成図 | SVG / PNG | レイアウトエンジンが座標を計算するため、矢印・枠・アイコンが必ず揃う |
+| 構成図（編集用） | drawio XML | 座標が揃った状態で渡るので、受け取った側が手で直せる |
+| 構成データ | JSON（IR） | 全成果物の正本。再生成に LLM を通さない |
+
+## 設計の核
+
+このプロジェクトの課題は例外なく「**LLM に数字と座標を出させていること**」に起因する。そこを分離する。
+
+```
+LLM が出すもの   → 構成の IR（どのサービスを、いくつ、どう繋ぐか）+ 前提条件
+Go が決定的にやる → 単価の取得、金額の計算、図のレイアウト、Excel 生成
+```
+
+LLM には**金額を一切出させない**。出させるのは「ALB×1、EC2 t3.medium×2 を 24h/日、RDS db.r6g.large Multi-AZ、S3 500GB」といった数量と前提だけ。
+単価はコードが API 経由で引き、合計は Excel の計算式が出す。
+
+これにより:
+
+- 検証は「前提が妥当か」だけになる。金額の電卓検算が不要になる
+- 座標を誰も書かないので、矢印と枠は原理的に必ず揃う
+
+```
+                    ┌→ D2 → SVG/PNG（構成図）
+LLM → Architecture ─┼→ drawio XML（手直ししたい人向け）
+       (JSON で保存) └→ excelize → Excel（見積もり）
+```
+
+## 設計原則
+
+迷ったらここに戻る。
+
+1. **LLM に金額を出させない。** 数量と前提だけ出させる
+2. **LLM に座標を出させない。** レイアウトエンジンに任せる
+3. **LLM に MCP のフィルタを組ませない。** catalog の定義をコードが使う
+4. **Excel の金額セルは必ず数式。** 定数を焼き込まない
+5. **IR は JSON で保存する。** 再生成に LLM を通さない
+6. **preview API への依存は対話層だけに閉じる**
+
+## ドキュメント
+
+| ドキュメント | 内容 |
+|---|---|
+| [docs/PRD.md](docs/PRD.md) | 何を、誰のために、なぜ作るか。スコープとマイルストーン |
+| [docs/requirements.md](docs/requirements.md) | 要件定義。機能要件・非機能要件・制約・受け入れ条件 |
+| [docs/adr/](docs/adr/README.md) | 決定事項（[MADR 4.0.0](https://adr.github.io/madr/) 形式） |
+| [docs/archive/](docs/archive/) | 上記の元になった引き継ぎ資料。参考用で、正本ではない |
+
+## 技術スタック
+
+| 領域 | 採用 | 決定 |
+|---|---|---|
+| フレームワーク | Genkit Go | [ADR-0007](docs/adr/0007-genkit-go-with-preview-api-isolation.md) |
+| 構成図 | [D2](https://d2lang.com/)（Go ライブラリとして import） | [ADR-0003](docs/adr/0003-d2-for-diagram-rendering.md) |
+| Excel | [excelize](https://github.com/xuri/excelize) | [ADR-0006](docs/adr/0006-excelize-with-formula-cells.md) |
+| 単価取得 | AWS Pricing MCP Server（`PriceSource` 抽象の背後） | [ADR-0004](docs/adr/0004-aws-pricing-mcp-server-behind-pricesource.md) |
+
+## MVP のスコープ
+
+| 軸 | 範囲 |
+|---|---|
+| クラウド | AWS のみ（GCP は抽象のみ用意） |
+| サービス | EC2 / ALB / RDS / S3 / データ転送 / Lambda / ECS(Fargate) / API Gateway / DynamoDB の 9 種 |
+| 料金モデル | オンデマンドのみ（割引は Assumptions の割引率セルで表現） |
+| データ転送 | インターネット egress と AZ 間の 2 経路のみ |
+| 配布形態 | Web サービス |
+
+詳細は [docs/PRD.md](docs/PRD.md) を参照。
+
+## セルフホストと有料サービスについて
+
+本ソフトウェアは **AGPL-3.0** で公開している。セルフホストは自由に行える。
+セルフホストする場合は、`pricing:*` 権限を持つ読み取り専用の IAM ユーザーを自前で用意する必要がある
+（請求データへのアクセス権は不要）。
+
+将来的にマネージドな有料サービスとしての提供を予定しているが、本リポジトリのコードは AGPL-3.0 のまま公開を続ける。
+
+→ [ADR-0012](docs/adr/0012-agpl-license-with-commercial-saas.md)
+
+## ライセンス
+
+[AGPL-3.0](LICENSE)

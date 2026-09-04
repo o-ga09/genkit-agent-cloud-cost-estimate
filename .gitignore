@@ -1,0 +1,33 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/bin/
+/dist/
+vendor/
+
+# 生成物
+*.xlsx
+*.svg
+*.png
+*.drawio
+/out/
+
+# 環境変数・認証情報
+.env
+.env.*
+!.env.example
+credentials.json
+
+# エディタ・OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Claude Code
+.claude/
