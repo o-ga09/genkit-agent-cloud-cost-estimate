@@ -246,6 +246,11 @@ func tierNote(it cost.LineItem) string {
 	if !it.Price.Tiered {
 		return ""
 	}
+	// 無料枠を飛ばして課金が始まる階層を採っている場合は、その境目も出す。
+	if lower := it.Price.TierLowerBound; lower != "" && lower != "0" {
+		return fmt.Sprintf("%s %s を超えた分の単価（〜%s）。無料枠と他の階層は未計上",
+			lower, it.Price.Unit, it.Price.TierUpperBound)
+	}
 	return fmt.Sprintf("段階課金の第 1 階層の単価（〜%s %s）。上位の階層は未計上",
 		it.Price.TierUpperBound, it.Price.Unit)
 }
@@ -322,6 +327,13 @@ func (b *builder) writeEstimate() error {
 	return nil
 }
 
+func defaultStr(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
 func itemLabel(it cost.LineItem) string {
 	if it.Label != "" && it.Label != it.ResourceID {
 		return fmt.Sprintf("%s (%s)", it.ResourceID, it.Label)
@@ -364,8 +376,9 @@ func (b *builder) notAccountedItems() []string {
 	out := slices.Clone(notAccounted)
 	for _, it := range b.est.Items {
 		if it.OK() && it.Price.Tiered {
-			out = append(out, fmt.Sprintf("%s / %s の段階課金の上位階層（第 1 階層 〜%s %s の単価で計算している）",
-				it.ResourceID, it.DriverID, it.Price.TierUpperBound, it.Price.Unit))
+			out = append(out, fmt.Sprintf("%s / %s の段階課金のうち、採用した階層（%s〜%s %s）以外",
+				it.ResourceID, it.DriverID,
+				defaultStr(it.Price.TierLowerBound, "0"), it.Price.TierUpperBound, it.Price.Unit))
 		}
 	}
 	for _, it := range b.est.Failed() {

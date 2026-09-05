@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1",
+  "provider": "aws",
+  "region": "ap-northeast-1",
+  "assumptions": {
+    "hoursPerDay": 24,
+    "daysPerMonth": 30,
+    "requestsPerMonth": 5000000,
+    "fxRate": 150,
+    "discountRate": 0
+  },
+  "resources": [
+    {
+      "id": "api",
+      "service": "apigateway",
+      "label": "HTTP API",
+      "params": { "apiType": "http", "requestsPerMonth": 5000000 }
+    },
+    {
+      "id": "fn-api",
+      "service": "lambda",
+      "label": "API ハンドラ (x86)",
+      "params": {
+        "architecture": "x86_64",
+        "invocationsPerMonth": 5000000,
+        "memoryMb": 512,
+        "avgDurationMs": 120
+      }
+    },
+    {
+      "id": "fn-batch",
+      "service": "lambda",
+      "label": "バッチ処理 (arm64)",
+      "params": {
+        "architecture": "arm64",
+        "invocationsPerMonth": 30000,
+        "memoryMb": 1024,
+        "avgDurationMs": 5000
+      }
+    },
+    {
+      "id": "table",
+      "service": "dynamodb",
+      "label": "アプリケーションテーブル",
+      "params": {
+        "writeRequestUnitsPerMonth": 2000000,
+        "readRequestUnitsPerMonth": 10000000,
+        "storageGb": 50
+      }
+    },
+    {
+      "id": "vpc-main",
+      "service": "vpc",
+      "label": "VPC 10.0.0.0/16"
+    },
+    {
+      "id": "worker",
+      "service": "ecs",
+      "label": "常駐ワーカー (x86)",
+      "parent": "vpc-main",
+      "params": { "vcpu": 0.5, "memoryGb": 1, "taskCount": 2, "architecture": "x86_64" }
+    },
+    {
+      "id": "worker-arm",
+      "service": "ecs",
+      "label": "常駐ワーカー (arm64)",
+      "parent": "vpc-main",
+      "params": { "vcpu": 1, "memoryGb": 2, "taskCount": 1, "architecture": "arm64" }
+    },
+    {
+      "id": "egress",
+      "service": "data_transfer",
+      "label": "インターネット egress",
+      "params": { "path": "internet_egress", "gbPerMonth": 200 }
+    }
+  ],
+  "edges": [
+    { "from": "api", "to": "fn-api", "label": "invoke" },
+    { "from": "fn-api", "to": "table", "label": "PutItem / Query" },
+    { "from": "fn-batch", "to": "table", "label": "BatchWrite" },
+    { "from": "worker", "to": "table", "label": "Query" },
+    { "from": "worker-arm", "to": "table", "label": "Query" },
+    { "from": "api", "to": "egress" }
+  ]
+}

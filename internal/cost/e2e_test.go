@@ -21,28 +21,32 @@ func TestE2E_ExampleIR(t *testing.T) {
 	if os.Getenv("AWS_PRICING_MCP_E2E") == "" {
 		t.Skip("AWS_PRICING_MCP_E2E が未設定のためスキップします")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	for _, name := range []string{"web-3tier", "serverless-api"} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 
-	cat := builtinCatalog(t)
-	arch, err := ir.LoadFile("../../examples/ir/web-3tier.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := awsmcp.New(awsmcp.Options{})
-	defer src.Close()
+			cat := builtinCatalog(t)
+			arch, err := ir.LoadFile("../../examples/ir/" + name + ".json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			src := awsmcp.New(awsmcp.Options{})
+			defer src.Close()
 
-	est, err := cost.Build(ctx, arch, cat, pricing.NewCache(src))
-	if err != nil {
-		t.Fatalf("明細の組み立てに失敗しました: %v", err)
-	}
-	for _, it := range est.Items {
-		if !it.OK() {
-			t.Errorf("%s/%s: %v", it.ResourceID, it.DriverID, it.Err)
-			continue
-		}
-		t.Logf("%-14s %-16s %10.8f %s/%s  qty=%.0f  SKU=%s  tiered=%v",
-			it.ResourceID, it.DriverID, it.Price.Amount, it.Price.Currency, it.Price.Unit,
-			it.Quantity, it.Price.SKU, it.Price.Tiered)
+			est, err := cost.Build(ctx, arch, cat, pricing.NewCache(src))
+			if err != nil {
+				t.Fatalf("明細の組み立てに失敗しました: %v", err)
+			}
+			for _, it := range est.Items {
+				if !it.OK() {
+					t.Errorf("%s/%s: %v", it.ResourceID, it.DriverID, it.Err)
+					continue
+				}
+				t.Logf("%-12s %-24s %12.10f %s/%s  qty=%.0f  SKU=%s  tier=%s〜%s",
+					it.ResourceID, it.DriverID, it.Price.Amount, it.Price.Currency, it.Price.Unit,
+					it.Quantity, it.Price.SKU, it.Price.TierLowerBound, it.Price.TierUpperBound)
+			}
+		})
 	}
 }

@@ -35,6 +35,8 @@ drivers:                         # コスト要素。1 driver が Excel の 1 �
 * `serviceCode` と `scope` だけが予約キー。それ以外は Price List API の属性名として渡る
 * 値は定数か `{{name}}` テンプレート。`name` には params のキーか、組み込み変数
   `region`（`ap-northeast-1`）/ `regionLocation`（`Asia Pacific (Tokyo)`）が使える
+* 既定は完全一致。部分一致が要るときは `usagetype: {contains: Fargate-vCPU-Hours}` と書く
+  （完全一致で絞れる属性が無い Fargate だけで使っている）
 * **フィルタは 1 SKU に絞れるまで書く。** 複数該当したときコードはエラーにする（1 件目を黙って採らない）
 * `usagetype` はリージョン接頭辞（`APN1-` など）が付くので使わない
 * 追加・変更したら実データで検証し、[../../../docs/reviews/price-query-review.md](../../../docs/reviews/price-query-review.md) を更新する
@@ -52,8 +54,8 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 
 ## 現状
 
-基盤 5 サービス（ec2 / alb / rds / s3 / data_transfer）の drivers が入っている。
-サーバーレス 4 サービス（Lambda / ECS(Fargate) / API Gateway / DynamoDB）は M6 で追加する。
+MVP の 9 サービス（ec2 / alb / rds / s3 / data_transfer / lambda / ecs / apigateway / dynamodb）の
+drivers が入っている。
 
 `vpc` と `az` は課金要素を持たないグルーピング用の定義で、図の入れ子（FR-IR-5 / FR-DIA-3）に使う。
 drivers を持たないため見積もりの明細には出ない。

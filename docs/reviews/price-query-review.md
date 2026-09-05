@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 |---|---|
 | レビュー日 | 2026-09-05 |
-| 対象 | `internal/catalog/data/*.yaml` の全 driver（基盤 5 サービス） |
+| 対象 | `internal/catalog/data/*.yaml` の全 driver（MVP の 9 サービス） |
 | 検証リージョン | ap-northeast-1 |
 | 方法 | AWS Price List API（AWS Pricing MCP Server 経由）に catalog のフィルタをそのまま投げ、**1 SKU に一意に解決すること**と、返る単位が catalog の `unit` と一致することを確認した |
 
@@ -33,6 +33,19 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | s3 / get_requests | AmazonS3 | productFamily=API Request, group=S3-API-Tier2, groupDescription=GET and all other requests | 9C7873KU3ZQBD6BJ | Requests | 0.00000037 |
 | data_transfer / internet_egress | AWSDataTransfer | transferType=AWS Outbound, fromLocation=Asia Pacific (Tokyo) | 9ESU2G5WSY6FMZR3 | GB | 0.114（段階課金の第 1 階層） |
 | data_transfer / inter_az | AWSDataTransfer | transferType=IntraRegion, fromLocation=Asia Pacific (Tokyo) | RVH645383RKU285J | GB | 0.01 |
+| lambda / requests | AWSLambda | productFamily=Serverless, group=AWS-Lambda-Requests | 3BE8DYKG4FYSZGDW | Request | 0.0000002 |
+| lambda / duration_gb_seconds | AWSLambda | productFamily=Serverless, group=AWS-Lambda-Duration | FSYUV9NMNDEXRJ5H | Lambda-GB-Second | 0.0000166667（第 1 階層） |
+| lambda / requests_arm | AWSLambda | productFamily=Serverless, group=AWS-Lambda-Requests-ARM | AA4Q79463N2JQHZA | Requests | 0.0000002 |
+| lambda / duration_gb_seconds_arm | AWSLambda | productFamily=Serverless, group=AWS-Lambda-Duration-ARM | ZSE7CMBEBTMPH8ET | Lambda-GB-Second | 0.0000133334（第 1 階層） |
+| ecs / vcpu_hours | AmazonECS | productFamily=Compute, usagetype **contains** Fargate-vCPU-Hours | KBQ3Q6DY9J327G8N | hours | 0.05056 |
+| ecs / memory_gb_hours | AmazonECS | productFamily=Compute, usagetype **contains** Fargate-GB-Hours | JQEE6EF5FAF2AESH | hours | 0.00553 |
+| ecs / vcpu_hours_arm | AmazonECS | productFamily=Compute, usagetype **contains** Fargate-ARM-vCPU-Hours | ZNX9M5D8R95VT2QQ | hours | 0.04045 |
+| ecs / memory_gb_hours_arm | AmazonECS | productFamily=Compute, usagetype **contains** Fargate-ARM-GB-Hours | WXXGZM434J9JXCU5 | hours | 0.00442 |
+| apigateway / http_api_requests | AmazonApiGateway | productFamily=API Calls, operation=ApiGatewayHttpApi | 5TU3JKA59EGYZ8XY | Requests | 0.0000012900（第 1 階層） |
+| apigateway / rest_api_requests | AmazonApiGateway | productFamily=API Calls, operation=ApiGatewayRequest | MK9X5G6WSHJT7QGM | Requests | 0.0000042500（第 1 階層） |
+| dynamodb / write_request_units | AmazonDynamoDB | productFamily=Amazon DynamoDB PayPerRequest Throughput, group=DDB-WriteUnits | HBK75W4NW4DYPFAC | WriteRequestUnits | 0.000000715 |
+| dynamodb / read_request_units | AmazonDynamoDB | productFamily=Amazon DynamoDB PayPerRequest Throughput, group=DDB-ReadUnits | TX6BW4TWG2FZQMPQ | ReadRequestUnits | 0.0000001425 |
+| dynamodb / storage_gb_month | AmazonDynamoDB | productFamily=Database Storage, volumeType=Amazon DynamoDB - Indexed DataStore | 2HPSAWPXJ2JJJ6XY | GB-Mo | 0.285（無料枠 25GB を超えた分） |
 
 ## レビューで確認した点と判断
 
@@ -44,9 +57,15 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 * **データ転送はグローバルサービス。** `region` を渡すと 0 件になるため、`price_query.scope: global`
   として region を渡さず、`fromLocation` に location 名（`Asia Pacific (Tokyo)` など）を渡す。
   リージョンコードから location 名への対応表は `internal/cost/region.go` にある。
-* **段階課金は第 1 階層のみを採用する。** S3 ストレージ（〜50TB/月）とインターネット egress（〜10TB/月）が
-  該当する。取得した `Price.Tiered` が true になり、上限は `TierUpperBound` に入る。
-  上位階層は未計上のため、大容量では過大評価になる（Excel の「未計上の項目」に出す: FR-XLS-7）。
+* **段階課金は「課金が始まる最初の階層」を採用する。** 単純に第 1 階層を採ると、
+  DynamoDB のストレージのように第 1 階層が無料枠（$0）の SKU で費用が丸ごと消えてしまう。
+  そこで単価が 0 でない最初の階層を採る。採用した階層の範囲は `Price.TierLowerBound`〜`TierUpperBound`
+  に入り、Excel の「未計上の項目」に出る（FR-XLS-7）。無料枠は未計上（＝過大評価側）になる。
+* **usagetype でしか絞れない場合は部分一致を使う。** Fargate の Linux/x86 は、ARM と Windows にしか
+  `cpuArchitecture` / `operatingSystem` が入っておらず、完全一致では区別できない。
+  usagetype にはリージョン接頭辞（`APN1-` など）が付くため、`{contains: Fargate-vCPU-Hours}` で絞る。
+* **単位の食い違いを検出できる。** catalog の `unit` と取得した単価の単位が違う行は計上しない。
+  実際、Lambda の ARM 版だけ単位が `Requests`（x86 は `Request`）で、この仕組みで気づいた。
 * **オンデマンドのみを参照している。** MCP には `output_options.pricing_terms: ["OnDemand"]` を渡しており、
   Reserved は取得対象から除外される（FR-PRC-6 / ADR-0009）。
 
@@ -58,3 +77,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 * インターネット egress の無料枠（月 100GB）
 * NAT Gateway 処理料、リージョン間転送、VPC エンドポイント、CloudFront 経由の転送（[ADR-0011](../adr/0011-aws-first-and-limited-data-transfer-model.md)）
 * ライセンス込みの RDS エンジン（Oracle / SQL Server）
+* Lambda の無料枠、プロビジョンドコンカレンシー、エフェメラルストレージの追加分
+* Fargate のエフェメラルストレージ追加分と Windows タスク
+* API Gateway のキャッシュ、WebSocket API、データ転送
+* DynamoDB のプロビジョンドキャパシティ、バックアップ（PITR / オンデマンド）、グローバルテーブル、ストリーム

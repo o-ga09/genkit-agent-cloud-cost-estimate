@@ -9,17 +9,31 @@ import (
 )
 
 func TestPriceQuery_Key(t *testing.T) {
-	a := pricing.PriceQuery{Service: "AmazonEC2", Region: "ap-northeast-1",
-		Attributes: map[string]string{"instanceType": "t3.medium", "tenancy": "Shared"}}
-	b := pricing.PriceQuery{Service: "AmazonEC2", Region: "ap-northeast-1",
-		Attributes: map[string]string{"tenancy": "Shared", "instanceType": "t3.medium"}}
+	a := pricing.PriceQuery{Service: "AmazonEC2", Region: "ap-northeast-1", Filters: []pricing.Filter{
+		{Field: "instanceType", Value: "t3.medium"}, {Field: "tenancy", Value: "Shared"},
+	}}
+	b := pricing.PriceQuery{Service: "AmazonEC2", Region: "ap-northeast-1", Filters: []pricing.Filter{
+		{Field: "tenancy", Value: "Shared"}, {Field: "instanceType", Value: "t3.medium"},
+	}}
 	if a.Key() != b.Key() {
-		t.Errorf("map の順序でキーが変わりました:\n %q\n %q", a.Key(), b.Key())
+		t.Errorf("フィルタの順序でキーが変わりました:\n %q\n %q", a.Key(), b.Key())
 	}
-	c := pricing.PriceQuery{Service: "AmazonEC2", Region: "us-east-1",
-		Attributes: map[string]string{"instanceType": "t3.medium", "tenancy": "Shared"}}
+	c := pricing.PriceQuery{Service: "AmazonEC2", Region: "us-east-1", Filters: a.Filters}
 	if a.Key() == c.Key() {
 		t.Error("リージョン違いが同じキーになりました")
+	}
+	// 一致条件が違えば別の問い合わせになる。
+	d := pricing.PriceQuery{Service: "AmazonECS", Filters: []pricing.Filter{
+		{Field: "usagetype", Match: pricing.MatchContains, Value: "Fargate-vCPU-Hours"},
+	}}
+	e := pricing.PriceQuery{Service: "AmazonECS", Filters: []pricing.Filter{
+		{Field: "usagetype", Value: "Fargate-vCPU-Hours"},
+	}}
+	if d.Key() == e.Key() {
+		t.Error("contains と equals が同じキーになりました")
+	}
+	if got := a.Value("instanceType"); got != "t3.medium" {
+		t.Errorf("Value(instanceType) = %q", got)
 	}
 }
 

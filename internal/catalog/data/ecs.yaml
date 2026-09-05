@@ -1,0 +1,67 @@
+# Amazon ECS (Fargate)
+# Fargate の Linux/x86 は、EQUALS だけで一意にできる属性が無い（ARM と Windows にしか
+# cpuArchitecture / operatingSystem が入らない）。そのため usagetype の部分一致で絞る。
+# usagetype にはリージョン接頭辞（APN1- など）が付くので、完全一致では使えない。
+service: ecs
+display: ECS (Fargate)
+icon: https://icons.terrastruct.com/aws%2FContainers%2FAmazon-Elastic-Container-Service.svg
+doc: Fargate で動かすタスク。vCPU 時間とメモリ GB 時間で課金される。
+params:
+  vcpu:
+    type: float
+    required: true
+    doc: 1 タスクあたりの vCPU 数
+  memoryGb:
+    type: float
+    required: true
+    doc: 1 タスクあたりのメモリ GB
+  taskCount:
+    type: int
+    default: 1
+    doc: 常時稼働するタスク数
+  architecture:
+    type: string
+    default: x86_64
+    enum: [x86_64, arm64]
+    doc: タスクのアーキテクチャ
+drivers:
+  - id: vcpu_hours
+    unit: hours
+    when:
+      architecture: x86_64
+    price_query:
+      serviceCode: AmazonECS
+      productFamily: Compute
+      usagetype:
+        contains: Fargate-vCPU-Hours
+    quantity_formula: taskCount * vcpu * hoursPerDay * daysPerMonth
+  - id: memory_gb_hours
+    unit: hours
+    when:
+      architecture: x86_64
+    price_query:
+      serviceCode: AmazonECS
+      productFamily: Compute
+      usagetype:
+        contains: Fargate-GB-Hours
+    quantity_formula: taskCount * memoryGb * hoursPerDay * daysPerMonth
+  - id: vcpu_hours_arm
+    unit: hours
+    when:
+      architecture: arm64
+    price_query:
+      serviceCode: AmazonECS
+      productFamily: Compute
+      usagetype:
+        contains: Fargate-ARM-vCPU-Hours
+    quantity_formula: taskCount * vcpu * hoursPerDay * daysPerMonth
+  - id: memory_gb_hours_arm
+    unit: hours
+    when:
+      architecture: arm64
+    price_query:
+      serviceCode: AmazonECS
+      productFamily: Compute
+      usagetype:
+        contains: Fargate-ARM-GB-Hours
+    quantity_formula: taskCount * memoryGb * hoursPerDay * daysPerMonth

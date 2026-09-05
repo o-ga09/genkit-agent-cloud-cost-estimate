@@ -29,13 +29,13 @@ func TestE2E_Unit(t *testing.T) {
 	price, err := src.Unit(ctx, pricing.PriceQuery{
 		Service: "AmazonEC2",
 		Region:  "ap-northeast-1",
-		Attributes: map[string]string{
-			"productFamily":   "Compute Instance",
-			"instanceType":    "t3.medium",
-			"tenancy":         "Shared",
-			"operatingSystem": "Linux",
-			"preInstalledSw":  "NA",
-			"capacitystatus":  "Used",
+		Filters: []pricing.Filter{
+			{Field: "productFamily", Value: "Compute Instance"},
+			{Field: "instanceType", Value: "t3.medium"},
+			{Field: "tenancy", Value: "Shared"},
+			{Field: "operatingSystem", Value: "Linux"},
+			{Field: "preInstalledSw", Value: "NA"},
+			{Field: "capacitystatus", Value: "Used"},
 		},
 	})
 	if err != nil {

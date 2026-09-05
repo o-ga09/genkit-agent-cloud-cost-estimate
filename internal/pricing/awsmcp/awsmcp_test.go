@@ -25,7 +25,7 @@ func load(t *testing.T, name string) []byte {
 
 func TestParsePrice_EC2Instance(t *testing.T) {
 	q := pricing.PriceQuery{Service: "AmazonEC2", Region: "ap-northeast-1",
-		Attributes: map[string]string{"instanceType": "t3.medium"}}
+		Filters: []pricing.Filter{{Field: "instanceType", Value: "t3.medium"}}}
 
 	got, err := parsePrice(load(t, "ec2_instance.json"), q, fixedTime)
 	if err != nil {
@@ -57,8 +57,8 @@ func TestParsePrice_TieredTakesFirstTier(t *testing.T) {
 	if !got.Tiered {
 		t.Error("Tiered = false, want true")
 	}
-	if got.TierUpperBound != "51200" {
-		t.Errorf("TierUpperBound = %q, want \"51200\"", got.TierUpperBound)
+	if got.TierUpperBound != "51200" || got.TierLowerBound != "0" {
+		t.Errorf("階層の範囲 = %q〜%q, want 0〜51200", got.TierLowerBound, got.TierUpperBound)
 	}
 }
 
@@ -111,9 +111,9 @@ func TestBuildArguments(t *testing.T) {
 	q := pricing.PriceQuery{
 		Service: "AmazonEC2",
 		Region:  "ap-northeast-1",
-		Attributes: map[string]string{
-			"instanceType":  "t3.medium",
-			"productFamily": "Compute Instance",
+		Filters: []pricing.Filter{
+			{Field: "productFamily", Value: "Compute Instance"},
+			{Field: "instanceType", Value: "t3.medium"},
 		},
 	}
 	args := buildArguments(q)
@@ -138,7 +138,7 @@ func TestBuildArguments(t *testing.T) {
 	}
 
 	global := pricing.PriceQuery{Service: "AWSDataTransfer",
-		Attributes: map[string]string{"transferType": "AWS Outbound"}}
+		Filters: []pricing.Filter{{Field: "transferType", Value: "AWS Outbound"}}}
 	if _, ok := buildArguments(global)["region"]; ok {
 		t.Error("グローバルサービスに region が渡っています")
 	}

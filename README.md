@@ -3,9 +3,9 @@
 AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
 Genkit Go で実装する。
 
-> **ステータス: 実装中（M5 まで完了）**
+> **ステータス: 実装中（M6 まで完了）**
 > チャットで構成を相談し、確認のうえで構成図（SVG / PNG / drawio）と
-> 見積もり Excel を生成できる。残りは Web サービス化とサーバーレス 4 サービスの追加。
+> 見積もり Excel を生成できる。MVP の 9 サービスに対応済み。残りは Web サービス化。
 
 ## これは何か
 
@@ -66,7 +66,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | M3 | Excel 生成 | 完了（3 シート・金額セルは全て数式） |
 | M4 | estimate Flow | 完了（`estimate` Flow に結合。LLM は通らない） |
 | M5 | intake agent + 選択 UI | 完了（tool interrupt による選択肢での問い返し） |
-| M6 | サーバーレス 4 サービス追加 | 未着手 |
+| M6 | サーバーレス 4 サービス追加 | 完了（Lambda / ECS(Fargate) / API Gateway / DynamoDB） |
 
 ## パッケージ構成
 
@@ -84,7 +84,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | `cmd/render` | IR JSON から図を出す CLI |
 | `cmd/estimate` | IR JSON から成果物一式を出す CLI（`estimate` Flow を実行する） |
 | `cmd/chat` | チャットで構成を相談し、確認後に成果物を生成する CLI |
-| `examples/ir` | 手書きの IR サンプル |
+| `examples/ir` | 手書きの IR サンプル（3 層 Web / サーバーレス API） |
 
 ## 設計の核
 

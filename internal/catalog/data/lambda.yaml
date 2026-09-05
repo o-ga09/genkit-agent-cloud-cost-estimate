@@ -1,0 +1,62 @@
+# AWS Lambda
+service: lambda
+display: AWS Lambda
+icon: https://icons.terrastruct.com/aws%2FCompute%2FAWS-Lambda.svg
+doc: Lambda 関数。呼び出し回数と、メモリ × 実行時間（GB 秒）で課金される。
+params:
+  architecture:
+    type: string
+    default: x86_64
+    enum: [x86_64, arm64]
+    doc: 関数のアーキテクチャ
+  invocationsPerMonth:
+    type: float
+    required: true
+    doc: 月間の呼び出し回数
+  memoryMb:
+    type: float
+    required: true
+    doc: 割り当てメモリ MB
+  avgDurationMs:
+    type: float
+    required: true
+    doc: 1 回あたりの平均実行時間 ミリ秒
+drivers:
+  - id: requests
+    unit: Request
+    when:
+      architecture: x86_64
+    price_query:
+      serviceCode: AWSLambda
+      productFamily: Serverless
+      group: AWS-Lambda-Requests
+    quantity_formula: invocationsPerMonth
+  - id: duration_gb_seconds
+    unit: Lambda-GB-Second
+    doc: メモリ × 実行時間。無料枠と、上位の階層の単価は未計上
+    when:
+      architecture: x86_64
+    price_query:
+      serviceCode: AWSLambda
+      productFamily: Serverless
+      group: AWS-Lambda-Duration
+    quantity_formula: invocationsPerMonth * avgDurationMs / 1000 * memoryMb / 1024
+  - id: requests_arm
+    # arm64 の SKU は単位が "Requests"（x86 は "Request"）。実データに合わせる。
+    unit: Requests
+    when:
+      architecture: arm64
+    price_query:
+      serviceCode: AWSLambda
+      productFamily: Serverless
+      group: AWS-Lambda-Requests-ARM
+    quantity_formula: invocationsPerMonth
+  - id: duration_gb_seconds_arm
+    unit: Lambda-GB-Second
+    when:
+      architecture: arm64
+    price_query:
+      serviceCode: AWSLambda
+      productFamily: Serverless
+      group: AWS-Lambda-Duration-ARM
+    quantity_formula: invocationsPerMonth * avgDurationMs / 1000 * memoryMb / 1024

@@ -8,7 +8,9 @@ package cost
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/catalog"
@@ -163,15 +165,16 @@ func evalQuantity(d catalog.Driver, params map[string]any, assumptions map[strin
 // buildQuery は catalog の price_query から PriceQuery を組み立てる。
 // テンプレートの値は params と組み込み変数からのみ解決する。
 func buildQuery(d catalog.Driver, params map[string]any, builtins map[string]string, region string) (pricing.PriceQuery, error) {
-	attrs := make(map[string]string, len(d.PriceQuery))
-	for attr, tmpl := range d.Filters() {
-		value, err := expand(tmpl, params, builtins)
+	specs := d.Filters()
+	filters := make([]pricing.Filter, 0, len(specs))
+	for _, attr := range slices.Sorted(maps.Keys(specs)) {
+		value, err := expand(specs[attr].Value, params, builtins)
 		if err != nil {
 			return pricing.PriceQuery{}, fmt.Errorf("price_query.%s: %w", attr, err)
 		}
-		attrs[attr] = value
+		filters = append(filters, pricing.Filter{Field: attr, Match: specs[attr].Match, Value: value})
 	}
-	q := pricing.PriceQuery{Service: d.ServiceCode(), Attributes: attrs}
+	q := pricing.PriceQuery{Service: d.ServiceCode(), Filters: filters}
 	if !d.Global() {
 		q.Region = region
 	}

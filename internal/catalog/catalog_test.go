@@ -8,6 +8,7 @@ import (
 
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/catalog"
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/ir"
+	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/pricing"
 )
 
 func TestBuiltin_LoadsAllServices(t *testing.T) {
@@ -15,9 +16,11 @@ func TestBuiltin_LoadsAllServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("同梱 catalog の読み込みに失敗しました: %v", err)
 	}
-	// 基盤 5 サービス（ADR-0008 の MVP スコープのうち M2 で単価を引く分）と、
-	// 図の入れ子に使う課金要素なしの 2 種。
-	want := []string{"alb", "az", "data_transfer", "ec2", "rds", "s3", "vpc"}
+	// MVP の 9 サービス（ADR-0008）と、図の入れ子に使う課金要素なしの 2 種。
+	want := []string{
+		"alb", "apigateway", "az", "data_transfer", "dynamodb",
+		"ec2", "ecs", "lambda", "rds", "s3", "vpc",
+	}
 	if got := c.ServiceNames(); !slices.Equal(got, want) {
 		t.Errorf("ServiceNames() = %v, want %v", got, want)
 	}
@@ -64,6 +67,67 @@ func TestBuiltin_DataTransferHasTwoPaths(t *testing.T) {
 	want := []string{"internet_egress", "inter_az"}
 	if got := svc.Params["path"].Enum; !slices.Equal(got, want) {
 		t.Errorf("path の経路 = %v, want %v", got, want)
+	}
+}
+
+// FR-CAT-5: MVP の 9 サービスすべてに drivers がある。
+func TestBuiltin_AllBillableServicesHaveDrivers(t *testing.T) {
+	c, err := catalog.Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	billable := []string{
+		"ec2", "alb", "rds", "s3", "data_transfer",
+		"lambda", "ecs", "apigateway", "dynamodb",
+	}
+	for _, name := range billable {
+		svc, ok := c.Get(name)
+		if !ok {
+			t.Errorf("%s の定義がありません", name)
+			continue
+		}
+		if len(svc.Drivers) == 0 {
+			t.Errorf("%s に drivers がありません", name)
+		}
+		for _, d := range svc.Drivers {
+			if d.ServiceCode() == "" {
+				t.Errorf("%s/%s に serviceCode がありません", name, d.ID)
+			}
+			if d.Quantity() == nil {
+				t.Errorf("%s/%s の quantity_formula がパースされていません", name, d.ID)
+			}
+		}
+	}
+	// グルーピング用の 2 種は課金要素を持たない。
+	for _, name := range []string{"vpc", "az"} {
+		if svc, ok := c.Get(name); ok && len(svc.Drivers) != 0 {
+			t.Errorf("%s に drivers があります（課金要素を持たない想定）", name)
+		}
+	}
+}
+
+// usagetype のようにリージョン接頭辞が付く属性は部分一致で絞る。
+func TestBuiltin_ContainsFilter(t *testing.T) {
+	c, err := catalog.Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, ok := c.Get("ecs")
+	if !ok {
+		t.Fatal("ecs の定義がありません")
+	}
+	for _, d := range svc.Drivers {
+		spec, ok := d.Filters()["usagetype"]
+		if !ok {
+			t.Errorf("%s に usagetype のフィルタがありません", d.ID)
+			continue
+		}
+		if spec.Match != pricing.MatchContains {
+			t.Errorf("%s の usagetype が %q（want contains）", d.ID, spec.Match)
+		}
+		if strings.Contains(spec.Value, "APN1") {
+			t.Errorf("%s の usagetype にリージョン接頭辞が入っています: %q", d.ID, spec.Value)
+		}
 	}
 }
 

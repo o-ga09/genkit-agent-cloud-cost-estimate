@@ -1,0 +1,36 @@
+# Amazon API Gateway
+service: apigateway
+display: Amazon API Gateway
+icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAmazon-API-Gateway.svg
+doc: API Gateway。リクエスト数で課金される。HTTP API と REST API で単価が違う。
+params:
+  apiType:
+    type: string
+    default: http
+    enum: [http, rest]
+    doc: API の種類。http は HTTP API、rest は REST API
+  requestsPerMonth:
+    type: float
+    required: true
+    doc: 月間リクエスト数
+drivers:
+  - id: http_api_requests
+    unit: Requests
+    doc: 単価は最初の課金階層のもの。上位の階層は未計上
+    when:
+      apiType: http
+    price_query:
+      serviceCode: AmazonApiGateway
+      productFamily: API Calls
+      operation: ApiGatewayHttpApi
+    quantity_formula: requestsPerMonth
+  - id: rest_api_requests
+    unit: Requests
+    doc: 単価は最初の課金階層のもの。キャッシュとデータ転送は未計上
+    when:
+      apiType: rest
+    price_query:
+      serviceCode: AmazonApiGateway
+      productFamily: API Calls
+      operation: ApiGatewayRequest
+    quantity_formula: requestsPerMonth

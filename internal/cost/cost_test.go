@@ -89,7 +89,7 @@ func TestBuild_EC2(t *testing.T) {
 		"operatingSystem": "Linux", "preInstalledSw": "NA", "capacitystatus": "Used",
 	}
 	for k, want := range wantAttrs {
-		if got := hours.Query.Attributes[k]; got != want {
+		if got := hours.Query.Value(k); got != want {
 			t.Errorf("フィルタ %s = %q, want %q", k, got, want)
 		}
 	}
@@ -121,7 +121,7 @@ func TestBuild_UsesCatalogDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := est.Items[0]
-	if got := inst.Query.Attributes["deploymentOption"]; got != "Single-AZ" {
+	if got := inst.Query.Value("deploymentOption"); got != "Single-AZ" {
 		t.Errorf("deploymentOption = %q, want Single-AZ（catalog の既定値）", got)
 	}
 	if inst.Quantity != 24*30 {
@@ -158,7 +158,7 @@ func TestBuild_DriverWhenCondition(t *testing.T) {
 	if item.Query.Region != "" {
 		t.Errorf("region = %q, want 空（グローバルサービス）", item.Query.Region)
 	}
-	if got := item.Query.Attributes["fromLocation"]; got != "Asia Pacific (Tokyo)" {
+	if got := item.Query.Value("fromLocation"); got != "Asia Pacific (Tokyo)" {
 		t.Errorf("fromLocation = %q, want Asia Pacific (Tokyo)", got)
 	}
 }
@@ -224,8 +224,15 @@ func TestBuild_UnknownRegion(t *testing.T) {
 
 // サンプル IR の全行でフィルタが解決でき、テンプレートが残らないこと。
 func TestBuild_ExampleIR(t *testing.T) {
+	for _, name := range []string{"web-3tier", "serverless-api"} {
+		t.Run(name, func(t *testing.T) { buildExample(t, name) })
+	}
+}
+
+func buildExample(t *testing.T, name string) {
+	t.Helper()
 	cat := builtinCatalog(t)
-	arch, err := ir.LoadFile("../../examples/ir/web-3tier.json")
+	arch, err := ir.LoadFile("../../examples/ir/" + name + ".json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,10 +245,10 @@ func TestBuild_ExampleIR(t *testing.T) {
 		t.Fatalf("失敗した行があります: %v", est.Failed()[0].Err)
 	}
 	for _, it := range est.Items {
-		for attr, v := range it.Query.Attributes {
-			if strings.Contains(v, "{{") {
+		for _, f := range it.Query.Filters {
+			if strings.Contains(f.Value, "{{") {
 				t.Errorf("%s/%s のフィルタ %s にテンプレートが残っています: %q",
-					it.ResourceID, it.DriverID, attr, v)
+					it.ResourceID, it.DriverID, f.Field, f.Value)
 			}
 		}
 		if it.Quantity < 0 {

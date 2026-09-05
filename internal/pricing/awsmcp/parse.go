@@ -98,7 +98,7 @@ func parsePrice(raw []byte, q pricing.PriceQuery, now time.Time) (pricing.Price,
 	slices.Sort(termKeys)
 	t := terms[termKeys[0]]
 
-	dim, tiered, err := firstTier(t.PriceDimensions)
+	dim, tiered, err := billableTier(t.PriceDimensions)
 	if err != nil {
 		return pricing.Price{}, fmt.Errorf("SKU %s: %w", p.Product.SKU, err)
 	}
@@ -117,13 +117,19 @@ func parsePrice(raw []byte, q pricing.PriceQuery, now time.Time) (pricing.Price,
 		Tiered:      tiered,
 	}
 	if tiered {
+		price.TierLowerBound = dim.BeginRange
 		price.TierUpperBound = dim.EndRange
 	}
 	return price, nil
 }
 
-// firstTier は最初の階層（beginRange が最小）の価格次元を返す。
-func firstTier(dims map[string]priceDimension) (priceDimension, bool, error) {
+// billableTier は課金が始まる最初の階層を返す。
+//
+// 段階課金では下の階層ほど安いとは限らない。DynamoDB のストレージのように
+// 第 1 階層が無料枠（$0）の SKU があり、それを採ると費用が丸ごと消えてしまう。
+// そこで「単価が 0 でない最初の階層」を採る。無料枠は未計上として扱う
+// （見積もりが過小になるより過大になるほうが安全なため）。
+func billableTier(dims map[string]priceDimension) (priceDimension, bool, error) {
 	if len(dims) == 0 {
 		return priceDimension{}, false, fmt.Errorf("価格次元がありません")
 	}
@@ -142,6 +148,12 @@ func firstTier(dims map[string]priceDimension) (priceDimension, bool, error) {
 		}
 		return cmpString(a, b)
 	})
+	for _, k := range keys {
+		if amount, _, err := amountOf(dims[k]); err == nil && amount > 0 {
+			return dims[k], len(dims) > 1, nil
+		}
+	}
+	// すべて 0 円（無料の SKU）。
 	return dims[keys[0]], len(dims) > 1, nil
 }
 

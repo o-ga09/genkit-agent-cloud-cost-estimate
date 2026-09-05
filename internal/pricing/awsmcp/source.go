@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"os/exec"
 	"slices"
@@ -115,12 +114,20 @@ func (s *Source) connect(ctx context.Context) (*mcp.ClientSession, error) {
 // buildArguments は get_pricing に渡す引数を組み立てる。
 // フィルタは catalog 由来の値だけで構成され、LLM の出力は通らない（PRIN-3）。
 func buildArguments(q pricing.PriceQuery) map[string]any {
-	filters := make([]map[string]any, 0, len(q.Attributes))
-	for _, field := range slices.Sorted(maps.Keys(q.Attributes)) {
+	sorted := slices.Clone(q.Filters)
+	slices.SortFunc(sorted, func(a, b pricing.Filter) int {
+		return strings.Compare(a.Field, b.Field)
+	})
+	filters := make([]map[string]any, 0, len(sorted))
+	for _, f := range sorted {
+		matchType := "EQUALS"
+		if f.Match == pricing.MatchContains {
+			matchType = "CONTAINS"
+		}
 		filters = append(filters, map[string]any{
-			"Field": field,
-			"Type":  "EQUALS",
-			"Value": q.Attributes[field],
+			"Field": f.Field,
+			"Type":  matchType,
+			"Value": f.Value,
 		})
 	}
 	args := map[string]any{

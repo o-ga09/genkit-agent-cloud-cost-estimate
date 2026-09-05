@@ -1,0 +1,43 @@
+# Amazon DynamoDB
+# オンデマンドキャパシティ（PayPerRequest）のみを対象とする。
+# プロビジョンドキャパシティは別の課金体系で、この catalog では扱わない。
+service: dynamodb
+display: Amazon DynamoDB
+icon: https://icons.terrastruct.com/aws%2FDatabase%2FAmazon-DynamoDB.svg
+doc: DynamoDB テーブル。オンデマンドキャパシティの読み書きリクエストとストレージで課金される。
+params:
+  writeRequestUnitsPerMonth:
+    type: float
+    default: 0
+    doc: 月間の書き込みリクエストユニット数
+  readRequestUnitsPerMonth:
+    type: float
+    default: 0
+    doc: 月間の読み込みリクエストユニット数
+  storageGb:
+    type: float
+    required: true
+    doc: 保存データ量 GB
+drivers:
+  - id: write_request_units
+    unit: WriteRequestUnits
+    price_query:
+      serviceCode: AmazonDynamoDB
+      productFamily: Amazon DynamoDB PayPerRequest Throughput
+      group: DDB-WriteUnits
+    quantity_formula: writeRequestUnitsPerMonth
+  - id: read_request_units
+    unit: ReadRequestUnits
+    price_query:
+      serviceCode: AmazonDynamoDB
+      productFamily: Amazon DynamoDB PayPerRequest Throughput
+      group: DDB-ReadUnits
+    quantity_formula: readRequestUnitsPerMonth
+  - id: storage_gb_month
+    unit: GB-Mo
+    doc: 無料枠（最初の 25GB）を超えた分の単価。無料枠は未計上
+    price_query:
+      serviceCode: AmazonDynamoDB
+      productFamily: Database Storage
+      volumeType: Amazon DynamoDB - Indexed DataStore
+    quantity_formula: storageGb

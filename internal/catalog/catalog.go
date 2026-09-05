@@ -23,6 +23,7 @@ import (
 
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/formula"
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/ir"
+	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/pricing"
 )
 
 // price_query の予約キー。これ以外のキーは Price List API の属性名として扱う。
@@ -65,7 +66,10 @@ type Driver struct {
 	When map[string]string `yaml:"when"`
 	// PriceQuery は Price List API に渡すフィルタ。予約キー serviceCode と scope を除き、
 	// キーは属性名、値は "{{param}}" テンプレートまたは定数。LLM はここに触れない（PRIN-3）。
-	PriceQuery map[string]string `yaml:"price_query"`
+	//
+	// 値はスカラー（完全一致）か、{contains: "..."}（部分一致）で書く。
+	// 部分一致は usagetype のようにリージョン接頭辞が付く属性で使う。
+	PriceQuery map[string]FilterSpec `yaml:"price_query"`
 	// QuantityFormula は数量の式。変数は Resource.params と Assumptions の
 	// JSON フィールド名で参照する（ADR-0013）。
 	QuantityFormula string `yaml:"quantity_formula"`
@@ -77,15 +81,15 @@ type Driver struct {
 func (d Driver) Quantity() *formula.Expr { return d.quantity }
 
 // ServiceCode は Price List API のサービスコードを返す。
-func (d Driver) ServiceCode() string { return d.PriceQuery[keyServiceCode] }
+func (d Driver) ServiceCode() string { return d.PriceQuery[keyServiceCode].Value }
 
 // Global は region を指定せずに問い合わせる driver かどうかを返す。
 // データ転送のようにリージョン別ではないサービスで true になる。
-func (d Driver) Global() bool { return d.PriceQuery[keyScope] == scopeGlobal }
+func (d Driver) Global() bool { return d.PriceQuery[keyScope].Value == scopeGlobal }
 
-// Filters は price_query から予約キーを除いた、属性名とテンプレートの対を返す。
-func (d Driver) Filters() map[string]string {
-	out := make(map[string]string, len(d.PriceQuery))
+// Filters は price_query から予約キーを除いた、属性名とフィルタの対を返す。
+func (d Driver) Filters() map[string]FilterSpec {
+	out := make(map[string]FilterSpec, len(d.PriceQuery))
 	for k, v := range d.PriceQuery {
 		if k == keyServiceCode || k == keyScope {
 			continue
@@ -107,6 +111,39 @@ func (d Driver) AppliesTo(params map[string]any) bool {
 		}
 	}
 	return true
+}
+
+// FilterSpec は price_query の値 1 件。
+type FilterSpec struct {
+	Match pricing.Match
+	Value string
+}
+
+// UnmarshalYAML はスカラーと {contains: "..."} の両方を受け付ける。
+func (f *FilterSpec) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		f.Match = pricing.MatchEquals
+		return node.Decode(&f.Value)
+	case yaml.MappingNode:
+		var m map[string]string
+		if err := node.Decode(&m); err != nil {
+			return err
+		}
+		if len(m) != 1 {
+			return fmt.Errorf("フィルタは {contains: \"...\"} の形で 1 つだけ書く")
+		}
+		for k, v := range m {
+			if k != string(pricing.MatchContains) {
+				return fmt.Errorf("未対応のフィルタ条件です: %q（使えるのは contains）", k)
+			}
+			f.Match = pricing.MatchContains
+			f.Value = v
+		}
+		return nil
+	default:
+		return fmt.Errorf("フィルタの値が不正です")
+	}
 }
 
 // Service は 1 サービス分の定義。1 ファイル 1 サービス。
@@ -210,17 +247,17 @@ func (s *Service) compileDriver(file string, d *Driver) error {
 	if d.Unit == "" {
 		return fmt.Errorf("%s: unit は必須です", where)
 	}
-	if d.PriceQuery[keyServiceCode] == "" {
+	if d.PriceQuery[keyServiceCode].Value == "" {
 		return fmt.Errorf("%s: price_query.serviceCode は必須です", where)
 	}
-	switch d.PriceQuery[keyScope] {
+	switch d.PriceQuery[keyScope].Value {
 	case "", scopeRegional, scopeGlobal:
 	default:
 		return fmt.Errorf("%s: price_query.scope は %q か %q です: %q",
-			where, scopeRegional, scopeGlobal, d.PriceQuery[keyScope])
+			where, scopeRegional, scopeGlobal, d.PriceQuery[keyScope].Value)
 	}
-	for attr, tmpl := range d.Filters() {
-		for _, m := range templatePattern.FindAllStringSubmatch(tmpl, -1) {
+	for attr, spec := range d.Filters() {
+		for _, m := range templatePattern.FindAllStringSubmatch(spec.Value, -1) {
 			name := m[1]
 			if _, ok := s.Params[name]; ok || builtinVars[name] {
 				continue

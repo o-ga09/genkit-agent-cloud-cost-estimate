@@ -9,12 +9,35 @@ package pricing
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 )
+
+// Match はフィルタの一致条件。
+type Match string
+
+const (
+	// MatchEquals は完全一致。既定。
+	MatchEquals Match = "equals"
+	// MatchContains は部分一致。usagetype のようにリージョン接頭辞が付く属性で使う。
+	MatchContains Match = "contains"
+)
+
+// Filter は Price List API の属性フィルタ 1 件。
+type Filter struct {
+	Field string
+	Match Match
+	Value string
+}
+
+func (f Filter) match() Match {
+	if f.Match == "" {
+		return MatchEquals
+	}
+	return f.Match
+}
 
 // PriceQuery は 1 つの単価を特定するための問い合わせ。
 type PriceQuery struct {
@@ -22,20 +45,37 @@ type PriceQuery struct {
 	Service string
 	// Region はリージョン。データ転送のようなグローバルサービスでは空にする。
 	Region string
-	// Attributes は Price List API の属性フィルタ。
-	Attributes map[string]string
+	// Filters は属性フィルタ。順序は Key() の中で正規化する。
+	Filters []Filter
 }
 
 // Key は問い合わせを一意に表す文字列。キャッシュとテストのスタブに使う。
 func (q PriceQuery) Key() string {
+	filters := slices.Clone(q.Filters)
+	slices.SortFunc(filters, func(a, b Filter) int {
+		if c := strings.Compare(a.Field, b.Field); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Value, b.Value)
+	})
 	var b strings.Builder
 	b.WriteString(q.Service)
 	b.WriteByte('|')
 	b.WriteString(q.Region)
-	for _, k := range slices.Sorted(maps.Keys(q.Attributes)) {
-		fmt.Fprintf(&b, "|%s=%s", k, q.Attributes[k])
+	for _, f := range filters {
+		fmt.Fprintf(&b, "|%s %s %s", f.Field, f.match(), f.Value)
 	}
 	return b.String()
+}
+
+// Value は指定した属性のフィルタ値を返す。テストと表示に使う。
+func (q PriceQuery) Value(field string) string {
+	for _, f := range q.Filters {
+		if f.Field == field {
+			return f.Value
+		}
+	}
+	return ""
 }
 
 // Price は取得した単価。SKU と取得日時を必ず伴わせ、Excel の Prices シートに
@@ -50,9 +90,12 @@ type Price struct {
 	// Description は料金の説明文（"$0.0544 per On Demand Linux t3.medium Instance Hour" など）。
 	// 検証時に AWS の料金ページと突き合わせるために持つ。
 	Description string
-	// Tiered は段階課金の SKU から最初の階層を採用したことを示す。
-	// 上位の階層は未計上であり、Excel に注記する（FR-XLS-7）。
+	// Tiered は段階課金の SKU から 1 つの階層を採用したことを示す。
+	// 採用しなかった階層は未計上であり、Excel に注記する（FR-XLS-7）。
 	Tiered bool
+	// TierLowerBound は採用した階層の下限。無料枠を飛ばした場合は
+	// その上限（= 課金が始まる量）が入る。段階課金でないときは空。
+	TierLowerBound string
 	// TierUpperBound は採用した階層の上限（段階課金でないときは空）。
 	TierUpperBound string
 }
