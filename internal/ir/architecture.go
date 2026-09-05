@@ -22,7 +22,10 @@ const (
 
 // Architecture は構成そのもの。全成果物の唯一の正本。
 type Architecture struct {
-	SchemaVersion string      `json:"schemaVersion"`
+	// SchemaVersion は IR のスキーマ版。読み込み時に空なら現行版として扱うため、
+	// 入力では省略できる（LLM に出力させるスキーマからも外れる）。
+	// 保存するときは Encode が必ず埋める。
+	SchemaVersion string      `json:"schemaVersion,omitempty"`
 	Provider      Provider    `json:"provider"`
 	Region        string      `json:"region"`
 	Assumptions   Assumptions `json:"assumptions"`

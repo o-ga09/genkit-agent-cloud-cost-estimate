@@ -25,6 +25,7 @@
 | [0012](0012-agpl-license-with-commercial-saas.md) | ライセンスを AGPL-3.0 とし、OSS 公開・セルフホスト・自社有料サービスを両立させる | accepted |
 | [0013](0013-self-written-formula-engine.md) | `quantity_formula` の式エンジンを自前で実装し、変数名を IR の JSON フィールド名に揃える | accepted |
 | [0014](0014-resvg-wasm-for-png.md) | SVG → PNG の変換に resvg を WASM（wazero）で埋め込む | accepted |
+| [0015](0015-intake-custom-turn-loop.md) | intake agent は自前の対話ループを持ち、preview API の利用を interrupt ツールだけに絞る | accepted |
 
 ## 関連ドキュメント
 

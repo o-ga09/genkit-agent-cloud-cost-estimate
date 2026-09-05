@@ -185,7 +185,8 @@
 * [ ] **Web サービスの認証方式**（誰が使えるか。社内 SSO / メールドメイン制限 / 招待制）
 * [ ] **ホスティング先**（Cloud Run / ECS / その他）
 * [ ] **保存した IR の保持期間とアクセス制御**（作成者のみか、リンクを知る人全員か）
-* [ ] **使用する LLM モデルの確定**（引き継ぎ資料の例は `googleai/gemini-flash-latest`）
+* [x] **使用する LLM モデルの確定** → `googleai/gemini-flash-latest`（googlegenai プラグイン）。
+  `intake.Options.Model` で差し替えられる
 * [x] **PNG 変換の実装手段** → resvg を WASM（wazero）で埋め込む（[ADR-0014](adr/0014-resvg-wasm-for-png.md)）。
   実行環境にフォントが必要
 * [x] **`quantity_formula` の式エンジン** → 四則演算だけの自前パーサ。変数名は IR の JSON

@@ -34,3 +34,6 @@ credentials.json
 
 # Claude Code
 .claude/
+
+# セッション
+.sessions/

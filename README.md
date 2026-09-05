@@ -3,9 +3,9 @@
 AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
 Genkit Go で実装する。
 
-> **ステータス: 実装中（M4 まで完了）**
-> IR JSON から構成図（SVG / PNG / drawio）と見積もり Excel（3 シート・数式込み）が
-> Genkit の Flow として出るところまで動く。LLM を使う対話部分はこれから。
+> **ステータス: 実装中（M5 まで完了）**
+> チャットで構成を相談し、確認のうえで構成図（SVG / PNG / drawio）と
+> 見積もり Excel を生成できる。残りは Web サービス化とサーバーレス 4 サービスの追加。
 
 ## これは何か
 
@@ -36,6 +36,9 @@ go run ./cmd/estimate -in examples/ir/web-3tier.json -out-dir out
 
 # 形式を選ぶ（ir / svg / png / drawio / xlsx）
 go run ./cmd/estimate -in examples/ir/web-3tier.json -formats svg,png,xlsx
+
+# チャットで構成を相談してから生成する（要 GEMINI_API_KEY）
+GEMINI_API_KEY=... go run ./cmd/chat -session my-estimate
 ```
 
 LLM は経由しない。IR JSON さえあれば図と見積もりが出る。
@@ -62,7 +65,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | M2 | catalog + PriceSource | 完了（基盤 5 サービスの drivers と MCP 経由の単価取得） |
 | M3 | Excel 生成 | 完了（3 シート・金額セルは全て数式） |
 | M4 | estimate Flow | 完了（`estimate` Flow に結合。LLM は通らない） |
-| M5 | intake agent + 選択 UI | 未着手 |
+| M5 | intake agent + 選択 UI | 完了（tool interrupt による選択肢での問い返し） |
 | M6 | サーバーレス 4 サービス追加 | 未着手 |
 
 ## パッケージ構成
@@ -77,8 +80,10 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | `internal/cost` | IR + catalog + 単価 → 見積もり明細 |
 | `internal/workbook` | 見積もり明細 → Excel（3 シート・数式） |
 | `internal/estimateflow` | 上記を結合した Genkit の `estimate` Flow。preview API に依存しない |
+| `internal/intake` | 構成をヒアリングする対話エージェント。preview API を使うのはここだけ |
 | `cmd/render` | IR JSON から図を出す CLI |
 | `cmd/estimate` | IR JSON から成果物一式を出す CLI（`estimate` Flow を実行する） |
+| `cmd/chat` | チャットで構成を相談し、確認後に成果物を生成する CLI |
 | `examples/ir` | 手書きの IR サンプル |
 
 ## 設計の核
