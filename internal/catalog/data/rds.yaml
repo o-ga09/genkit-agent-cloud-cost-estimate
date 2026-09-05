@@ -11,17 +11,39 @@ params:
   engine:
     type: string
     required: true
-    enum: [mysql, postgresql, mariadb, oracle, sqlserver, aurora-mysql, aurora-postgresql]
-    doc: データベースエンジン
-  multiAz:
-    type: bool
-    default: false
-    doc: Multi-AZ 配置かどうか
+    enum: [MySQL, PostgreSQL, MariaDB, Aurora MySQL, Aurora PostgreSQL]
+    doc: データベースエンジン。値は Price List API の databaseEngine に渡す
+  deployment:
+    type: string
+    default: Single-AZ
+    enum: [Single-AZ, Multi-AZ, Multi-AZ (readable standbys)]
+    doc: 配置。値は Price List API の deploymentOption に渡す
   storageGb:
     type: float
     default: 20
-    doc: ストレージ容量 GB
+    doc: 1 インスタンスあたりのストレージ容量 GB（gp3）
   count:
     type: int
     default: 1
     doc: インスタンス数
+drivers:
+  - id: instance_hours
+    unit: Hrs
+    doc: ライセンス込みのエンジン（Oracle / SQL Server）は MVP の対象外
+    price_query:
+      serviceCode: AmazonRDS
+      productFamily: Database Instance
+      instanceType: "{{instanceClass}}"
+      databaseEngine: "{{engine}}"
+      deploymentOption: "{{deployment}}"
+    quantity_formula: count * hoursPerDay * daysPerMonth
+  - id: storage_gb_month
+    unit: GB-Mo
+    doc: gp3 ストレージ。バックアップストレージと IOPS 追加分は未計上
+    price_query:
+      serviceCode: AmazonRDS
+      productFamily: Database Storage
+      databaseEngine: "{{engine}}"
+      deploymentOption: "{{deployment}}"
+      volumeType: General Purpose-GP3
+    quantity_formula: count * storageGb

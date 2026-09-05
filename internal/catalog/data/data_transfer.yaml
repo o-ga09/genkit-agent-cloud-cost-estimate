@@ -1,6 +1,6 @@
 # データ転送
 # MVP でモデル化するのはインターネット egress と AZ 間の 2 経路のみ（ADR-0011 / FR-CAT-6）。
-# NAT Gateway 処理料・リージョン間転送・VPC エンドポイントは未計上であり、
+# NAT Gateway 処理料・リージョン間転送・VPC エンドポイント・CloudFront 経由は未計上であり、
 # Excel の「未計上の項目」に明示する（FR-XLS-7）。
 service: data_transfer
 display: データ転送
@@ -16,3 +16,28 @@ params:
     type: float
     required: true
     doc: 月間転送量 GB
+drivers:
+  - id: internet_egress
+    unit: GB
+    when:
+      path: internet_egress
+    doc: 単価は最初の階層（〜10TB/月）のもの。無料枠とそれ以降の階層は未計上
+    price_query:
+      serviceCode: AWSDataTransfer
+      scope: global
+      transferType: AWS Outbound
+      fromLocation: "{{regionLocation}}"
+    quantity_formula: gbPerMonth
+  - id: inter_az
+    unit: GB
+    when:
+      path: inter_az
+    doc: >-
+      AZ をまたぐ転送。AWS は送信側と受信側の両方に課金するため、
+      往復分を見るときは gbPerMonth に両方向の合計を入れる。
+    price_query:
+      serviceCode: AWSDataTransfer
+      scope: global
+      transferType: IntraRegion
+      fromLocation: "{{regionLocation}}"
+    quantity_formula: gbPerMonth

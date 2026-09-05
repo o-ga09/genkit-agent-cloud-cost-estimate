@@ -187,7 +187,8 @@
 * [ ] **保存した IR の保持期間とアクセス制御**（作成者のみか、リンクを知る人全員か）
 * [ ] **使用する LLM モデルの確定**（引き継ぎ資料の例は `googleai/gemini-flash-latest`）
 * [ ] **PNG 変換の実装手段**（resvg / headless Chrome）
-* [ ] **`quantity_formula` の式エンジン**（既存ライブラリを使うか自前実装か）
+* [x] **`quantity_formula` の式エンジン** → 四則演算だけの自前パーサ。変数名は IR の JSON
+  フィールド名に揃える（[ADR-0013](adr/0013-self-written-formula-engine.md)）
 * [ ] **アイコンの取得元と再配布可否**（AWS 公式アイコンの利用条件の確認）
   * 暫定で `icons.terrastruct.com` の URL を catalog から参照している（アセットは同梱・再配布していない）
 * [ ] **GCP 対応の着手時期**

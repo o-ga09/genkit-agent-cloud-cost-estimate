@@ -23,6 +23,7 @@
 | [0010](0010-web-service-as-delivery-form.md) | 配布形態を Web サービスとする | accepted |
 | [0011](0011-aws-first-and-limited-data-transfer-model.md) | AWS を先行実装し、データ転送コストは主要経路のみモデル化する | accepted |
 | [0012](0012-agpl-license-with-commercial-saas.md) | ライセンスを AGPL-3.0 とし、OSS 公開・セルフホスト・自社有料サービスを両立させる | accepted |
+| [0013](0013-self-written-formula-engine.md) | `quantity_formula` の式エンジンを自前で実装し、変数名を IR の JSON フィールド名に揃える | accepted |
 
 ## 関連ドキュメント
 

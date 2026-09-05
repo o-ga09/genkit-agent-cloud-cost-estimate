@@ -3,8 +3,9 @@
 AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
 Genkit Go で実装する。
 
-> **ステータス: 実装中（M1 まで完了）**
-> IR から構成図（SVG）が出るところまで動く。単価取得・Excel 生成・対話はこれから。
+> **ステータス: 実装中（M2 まで完了）**
+> IR から構成図（SVG）が出て、catalog 経由で AWS の単価が引けるところまで動く。
+> Excel 生成と対話はこれから。
 
 ## これは何か
 
@@ -31,13 +32,19 @@ go run ./cmd/render -in examples/ir/web-3tier.json
 
 LLM は経由しない。IR JSON さえあれば図が出る。
 
+単価取得まで含めた確認（`uvx` と `pricing:*` 権限の AWS 認証情報が必要）:
+
+```sh
+AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
+```
+
 ## 進捗
 
 | # | マイルストーン | 状態 |
 |---|---|---|
 | M0 | IR スキーマ確定 | 完了 |
 | M1 | IR + D2 レンダリング | 完了（SVG。PNG / drawio は未着手） |
-| M2 | catalog + PriceSource | catalog の枠のみ。`drivers` と単価取得は未着手 |
+| M2 | catalog + PriceSource | 完了（基盤 5 サービスの drivers と MCP 経由の単価取得） |
 | M3 | Excel 生成 | 未着手 |
 | M4 | estimate Flow | 未着手 |
 | M5 | intake agent + 選択 UI | 未着手 |
@@ -50,6 +57,9 @@ LLM は経由しない。IR JSON さえあれば図が出る。
 | `internal/ir` | IR の型定義・JSON 入出力・バリデーション |
 | `internal/catalog` | サービス定義 YAML の読み込み。`Resource.service` の値域と `params` のスキーマを供給する |
 | `internal/diagram` | IR → D2 ソース → SVG |
+| `internal/formula` | `quantity_formula` の式エンジン（評価と Excel 数式化） |
+| `internal/pricing` | `PriceSource` 抽象と、AWS Pricing MCP Server 実装（`awsmcp`） |
+| `internal/cost` | IR + catalog + 単価 → 見積もり明細 |
 | `cmd/render` | IR JSON から図を出す CLI |
 | `examples/ir` | 手書きの IR サンプル |
 

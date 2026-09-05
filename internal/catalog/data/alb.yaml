@@ -12,3 +12,22 @@ params:
     type: float
     default: 0
     doc: 月間の処理データ量 GB（LCU 算定に使う）
+drivers:
+  - id: alb_hours
+    unit: Hrs
+    price_query:
+      serviceCode: AWSELB
+      productFamily: Load Balancer-Application
+      groupDescription: LoadBalancer hourly usage by Application Load Balancer
+    quantity_formula: count * hoursPerDay * daysPerMonth
+  - id: alb_lcu_hours
+    unit: LCU-Hrs
+    doc: >-
+      処理バイト数の次元（1 LCU = 1 時間あたり 1 GB）だけで LCU を近似する。
+      新規接続数・アクティブ接続数・ルール評価数の次元は未計上のため、
+      これらが支配的な構成では過小評価になる。
+    price_query:
+      serviceCode: AWSELB
+      productFamily: Load Balancer-Application
+      groupDescription: Used Application Load Balancer capacity units-hr
+    quantity_formula: processedGbPerMonth

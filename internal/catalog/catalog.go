@@ -16,12 +16,32 @@ import (
 	"io/fs"
 	"maps"
 	"path"
+	"regexp"
 	"slices"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/formula"
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/ir"
 )
+
+// price_query の予約キー。これ以外のキーは Price List API の属性名として扱う。
+const (
+	keyServiceCode = "serviceCode"
+	keyScope       = "scope"
+
+	scopeRegional = "regional"
+	scopeGlobal   = "global"
+)
+
+// builtinVars は params 以外に price_query のテンプレートで使える変数。
+var builtinVars = map[string]bool{
+	"region":         true, // "ap-northeast-1"
+	"regionLocation": true, // "Asia Pacific (Tokyo)"
+}
+
+// templatePattern は price_query の "{{name}}" を取り出す。
+var templatePattern = regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
 
 //go:embed data/*.yaml
 var builtinFS embed.FS
@@ -35,12 +55,58 @@ type Param struct {
 	Doc      string       `yaml:"doc"`
 }
 
-// Driver はコスト要素 1 件。price_query と quantity_formula は M2 以降で使う。
+// Driver はコスト要素 1 件。1 driver が Excel の 1 行になる。
 type Driver struct {
-	ID              string            `yaml:"id"`
-	Unit            string            `yaml:"unit"`
-	PriceQuery      map[string]string `yaml:"price_query"`
-	QuantityFormula string            `yaml:"quantity_formula"`
+	ID   string `yaml:"id"`
+	Unit string `yaml:"unit"`
+	Doc  string `yaml:"doc"`
+	// When はこの driver が適用される条件。Resource.params の値がすべて一致した
+	// ときだけ計上する。空なら常に適用する。
+	When map[string]string `yaml:"when"`
+	// PriceQuery は Price List API に渡すフィルタ。予約キー serviceCode と scope を除き、
+	// キーは属性名、値は "{{param}}" テンプレートまたは定数。LLM はここに触れない（PRIN-3）。
+	PriceQuery map[string]string `yaml:"price_query"`
+	// QuantityFormula は数量の式。変数は Resource.params と Assumptions の
+	// JSON フィールド名で参照する（ADR-0013）。
+	QuantityFormula string `yaml:"quantity_formula"`
+
+	quantity *formula.Expr
+}
+
+// Quantity はパース済みの数量式を返す。catalog のロード時にパースされている。
+func (d Driver) Quantity() *formula.Expr { return d.quantity }
+
+// ServiceCode は Price List API のサービスコードを返す。
+func (d Driver) ServiceCode() string { return d.PriceQuery[keyServiceCode] }
+
+// Global は region を指定せずに問い合わせる driver かどうかを返す。
+// データ転送のようにリージョン別ではないサービスで true になる。
+func (d Driver) Global() bool { return d.PriceQuery[keyScope] == scopeGlobal }
+
+// Filters は price_query から予約キーを除いた、属性名とテンプレートの対を返す。
+func (d Driver) Filters() map[string]string {
+	out := make(map[string]string, len(d.PriceQuery))
+	for k, v := range d.PriceQuery {
+		if k == keyServiceCode || k == keyScope {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// AppliesTo は When の条件が Resource.params を満たすかを返す。
+func (d Driver) AppliesTo(params map[string]any) bool {
+	for k, want := range d.When {
+		got, ok := params[k]
+		if !ok {
+			return false
+		}
+		if s, isStr := got.(string); !isStr || s != want {
+			return false
+		}
+	}
+	return true
 }
 
 // Service は 1 サービス分の定義。1 ファイル 1 サービス。
@@ -87,7 +153,7 @@ func Load(fsys fs.FS) (*Catalog, error) {
 		if err := dec.Decode(&svc); err != nil {
 			return nil, fmt.Errorf("catalog %s のパースに失敗しました: %w", name, err)
 		}
-		if err := svc.validate(name); err != nil {
+		if err := svc.compile(name); err != nil {
 			return nil, err
 		}
 		if _, dup := c.services[svc.Service]; dup {
@@ -101,7 +167,8 @@ func Load(fsys fs.FS) (*Catalog, error) {
 	return c, nil
 }
 
-func (s Service) validate(file string) error {
+// compile は定義を検証し、quantity_formula をパースして保持する。
+func (s *Service) compile(file string) error {
 	if s.Service == "" {
 		return fmt.Errorf("catalog %s: service は必須です", file)
 	}
@@ -122,7 +189,8 @@ func (s Service) validate(file string) error {
 		}
 	}
 	seen := make(map[string]bool, len(s.Drivers))
-	for _, d := range s.Drivers {
+	for i := range s.Drivers {
+		d := &s.Drivers[i]
 		if d.ID == "" {
 			return fmt.Errorf("catalog %s: driver の id は必須です", file)
 		}
@@ -130,7 +198,61 @@ func (s Service) validate(file string) error {
 			return fmt.Errorf("catalog %s: driver の id が重複しています: %q", file, d.ID)
 		}
 		seen[d.ID] = true
+		if err := s.compileDriver(file, d); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func (s *Service) compileDriver(file string, d *Driver) error {
+	where := fmt.Sprintf("catalog %s: driver %q", file, d.ID)
+	if d.Unit == "" {
+		return fmt.Errorf("%s: unit は必須です", where)
+	}
+	if d.PriceQuery[keyServiceCode] == "" {
+		return fmt.Errorf("%s: price_query.serviceCode は必須です", where)
+	}
+	switch d.PriceQuery[keyScope] {
+	case "", scopeRegional, scopeGlobal:
+	default:
+		return fmt.Errorf("%s: price_query.scope は %q か %q です: %q",
+			where, scopeRegional, scopeGlobal, d.PriceQuery[keyScope])
+	}
+	for attr, tmpl := range d.Filters() {
+		for _, m := range templatePattern.FindAllStringSubmatch(tmpl, -1) {
+			name := m[1]
+			if _, ok := s.Params[name]; ok || builtinVars[name] {
+				continue
+			}
+			return fmt.Errorf("%s: price_query.%s が未定義の変数を参照しています: %q", where, attr, name)
+		}
+	}
+	for name := range d.When {
+		if _, ok := s.Params[name]; !ok {
+			return fmt.Errorf("%s: when が未定義のパラメータを参照しています: %q", where, name)
+		}
+	}
+	if d.QuantityFormula == "" {
+		return fmt.Errorf("%s: quantity_formula は必須です", where)
+	}
+	expr, err := formula.Parse(d.QuantityFormula)
+	if err != nil {
+		return fmt.Errorf("%s: %w", where, err)
+	}
+	known := make(map[string]bool, len(s.Params)+8)
+	for name := range s.Params {
+		known[name] = true
+	}
+	for _, name := range ir.AssumptionVarNames() {
+		known[name] = true
+	}
+	for _, name := range expr.Vars() {
+		if !known[name] {
+			return fmt.Errorf("%s: quantity_formula が未定義の変数を参照しています: %q", where, name)
+		}
+	}
+	d.quantity = expr
 	return nil
 }
 
@@ -191,3 +313,18 @@ func (c *Catalog) Display(service string) (string, bool) {
 }
 
 var _ ir.Schema = (*Catalog)(nil)
+
+// ResolveParams は catalog の既定値で params を補完した写しを返す。
+// 元の map は変更しない。
+func (s Service) ResolveParams(params map[string]any) map[string]any {
+	out := make(map[string]any, len(s.Params)+len(params))
+	for name, p := range s.Params {
+		if p.Default != nil {
+			out[name] = p.Default
+		}
+	}
+	for k, v := range params {
+		out[k] = v
+	}
+	return out
+}

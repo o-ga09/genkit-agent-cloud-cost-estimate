@@ -1,6 +1,6 @@
 # Amazon EC2
-# drivers（price_query / quantity_formula）は M2 で追加する。
-# price_query は AWS の料金ページと突き合わせた初回レビューを必須とする（FR-CAT-5）。
+# price_query は AWS Price List API のフィルタ。2026-09-05 に ap-northeast-1 で
+# 実データと突き合わせ済み（docs/reviews/price-query-review.md）。
 service: ec2
 display: Amazon EC2
 icon: https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg
@@ -18,3 +18,24 @@ params:
     type: float
     default: 0
     doc: 1 台あたりの EBS (gp3) 容量 GB
+drivers:
+  - id: instance_hours
+    unit: Hrs
+    doc: オンデマンドの Linux・共有テナンシーのみを対象とする
+    price_query:
+      serviceCode: AmazonEC2
+      productFamily: Compute Instance
+      instanceType: "{{instanceType}}"
+      tenancy: Shared
+      operatingSystem: Linux
+      preInstalledSw: NA
+      capacitystatus: Used
+    quantity_formula: count * hoursPerDay * daysPerMonth
+  - id: ebs_gb_month
+    unit: GB-Mo
+    doc: gp3 のプロビジョニング済み容量。IOPS とスループットの追加分は未計上
+    price_query:
+      serviceCode: AmazonEC2
+      productFamily: Storage
+      volumeApiName: gp3
+    quantity_formula: count * ebsGb

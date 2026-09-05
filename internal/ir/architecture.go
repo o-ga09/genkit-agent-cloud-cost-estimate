@@ -90,3 +90,24 @@ func (a *Architecture) Children(parent string) []*Resource {
 	}
 	return out
 }
+
+// AssumptionVarNames は Assumptions が式に供給する変数名（JSON フィールド名）を返す。
+// catalog の quantity_formula はこの名前で前提条件を参照する（ADR-0013）。
+func AssumptionVarNames() []string {
+	return []string{"hoursPerDay", "daysPerMonth", "requestsPerMonth", "fxRate", "discountRate"}
+}
+
+// Vars は式エンジンに渡す変数表を返す。Extra のキーもそのまま変数になる。
+func (a Assumptions) Vars() map[string]float64 {
+	vars := map[string]float64{
+		"hoursPerDay":      a.HoursPerDay,
+		"daysPerMonth":     a.DaysPerMonth,
+		"requestsPerMonth": a.RequestsPerMonth,
+		"fxRate":           a.FxRate,
+		"discountRate":     a.DiscountRate,
+	}
+	for k, v := range a.Extra {
+		vars[k] = v
+	}
+	return vars
+}

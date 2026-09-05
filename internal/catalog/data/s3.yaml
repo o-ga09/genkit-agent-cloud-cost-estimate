@@ -11,8 +11,8 @@ params:
   storageClass:
     type: string
     default: Standard
-    enum: [Standard, Standard-IA, One Zone-IA, Glacier Instant Retrieval]
-    doc: ストレージクラス
+    enum: [Standard, Standard - Infrequent Access, One Zone - Infrequent Access, Glacier Instant Retrieval]
+    doc: ストレージクラス。値は Price List API の volumeType に渡す
   getRequestsPerMonth:
     type: float
     default: 0
@@ -20,4 +20,29 @@ params:
   putRequestsPerMonth:
     type: float
     default: 0
-    doc: 月間 PUT リクエスト数
+    doc: 月間 PUT / COPY / POST / LIST リクエスト数
+drivers:
+  - id: storage_gb_month
+    unit: GB-Mo
+    doc: 単価は最初の階層（〜50TB/月）のもの。それ以降の階層は未計上
+    price_query:
+      serviceCode: AmazonS3
+      productFamily: Storage
+      volumeType: "{{storageClass}}"
+    quantity_formula: storageGb
+  - id: put_requests
+    unit: Requests
+    price_query:
+      serviceCode: AmazonS3
+      productFamily: API Request
+      group: S3-API-Tier1
+      groupDescription: PUT/COPY/POST or LIST requests
+    quantity_formula: putRequestsPerMonth
+  - id: get_requests
+    unit: Requests
+    price_query:
+      serviceCode: AmazonS3
+      productFamily: API Request
+      group: S3-API-Tier2
+      groupDescription: GET and all other requests
+    quantity_formula: getRequestsPerMonth

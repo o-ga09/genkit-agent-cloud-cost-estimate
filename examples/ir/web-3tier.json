@@ -49,8 +49,8 @@
       "parent": "az-a",
       "params": {
         "instanceClass": "db.r6g.large",
-        "engine": "postgresql",
-        "multiAz": true,
+        "engine": "PostgreSQL",
+        "deployment": "Multi-AZ",
         "storageGb": 200,
         "count": 1
       }

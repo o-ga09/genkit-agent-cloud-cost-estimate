@@ -19,26 +19,51 @@ params:                          # LLM が Resource.params に入れてよいキ
   storageClass:
     type: string
     enum: [Standard, Standard-IA]  # enum は string 型のみ
-drivers:                         # コスト要素。M2 で追加する
+drivers:                         # コスト要素。1 driver が Excel の 1 行になる
   - id: instance_hours
-    unit: hour
+    unit: Hrs                    # 必須。取得した単価の単位と一致しない行は計上しない
+    when: {path: internet_egress}  # 任意。params がこの値のときだけ計上する
     price_query:                 # このフィルタはコードが使う。LLM には渡さない（PRIN-3）
-      serviceCode: AmazonEC2
-      instanceType: "{{instanceType}}"
-    quantity_formula: "count * hours_per_day * days_per_month"
+      serviceCode: AmazonEC2     # 必須（予約キー）
+      scope: regional            # 任意（予約キー）。global なら region を渡さない
+      instanceType: "{{instanceType}}"   # 以降は Price List API の属性名
+    quantity_formula: count * hoursPerDay * daysPerMonth
 ```
+
+## price_query の書き方
+
+* `serviceCode` と `scope` だけが予約キー。それ以外は Price List API の属性名として渡る
+* 値は定数か `{{name}}` テンプレート。`name` には params のキーか、組み込み変数
+  `region`（`ap-northeast-1`）/ `regionLocation`（`Asia Pacific (Tokyo)`）が使える
+* **フィルタは 1 SKU に絞れるまで書く。** 複数該当したときコードはエラーにする（1 件目を黙って採らない）
+* `usagetype` はリージョン接頭辞（`APN1-` など）が付くので使わない
+* 追加・変更したら実データで検証し、[../../../docs/reviews/price-query-review.md](../../../docs/reviews/price-query-review.md) を更新する
+
+```sh
+AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
+```
+
+## quantity_formula の書き方
+
+四則演算・カッコ・単項マイナスだけ（[ADR-0013](../../../docs/adr/0013-self-written-formula-engine.md)）。
+変数は params のキーと `Assumptions` の JSON フィールド名
+（`hoursPerDay` / `daysPerMonth` / `requestsPerMonth` / `fxRate` / `discountRate`）で参照する。
+未定義の変数を参照する式は catalog のロード時にエラーになる。
 
 ## 現状
 
-`drivers` はまだどのファイルにも入っていない。`price_query` は AWS の料金ページと
-突き合わせた初回レビューが必須のため（FR-CAT-5 / PRD のリスク欄）、単価取得を扱う
-M2 で追加する。現時点の catalog は次の 3 つの役割を担っている。
+基盤 5 サービス（ec2 / alb / rds / s3 / data_transfer）の drivers が入っている。
+サーバーレス 4 サービス（Lambda / ECS(Fargate) / API Gateway / DynamoDB）は M6 で追加する。
+
+`vpc` と `az` は課金要素を持たないグルーピング用の定義で、図の入れ子（FR-IR-5 / FR-DIA-3）に使う。
+drivers を持たないため見積もりの明細には出ない。
+
+catalog は次の 4 つの役割を担う。
 
 - `Resource.service` の値域（enum）
 - `Resource.params` のバリデーションスキーマ
 - 図に当てるアイコンと表示名
-
-`vpc` と `az` は課金要素を持たないグルーピング用の定義で、図の入れ子（FR-IR-5 / FR-DIA-3）に使う。
+- コストモデル（drivers の `price_query` と `quantity_formula`）
 
 ## アイコンについて
 

@@ -107,8 +107,51 @@ func TestLoad_Errors(t *testing.T) {
 			"ec2.yaml": &fstest.MapFile{Data: []byte("service: ec2\ndisplay: X\nparams:\n  a: {type: int, enum: [\"1\"]}\n")},
 		}, "enum を使えるのは string 型だけです"},
 		{"driver の id 重複", fstest.MapFS{
-			"ec2.yaml": &fstest.MapFile{Data: []byte("service: ec2\ndisplay: X\ndrivers:\n  - id: a\n  - id: a\n")},
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n" +
+					"  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n    price_query: {serviceCode: AmazonEC2}\n" +
+					"  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n    price_query: {serviceCode: AmazonEC2}\n")},
 		}, "id が重複しています"},
+		{"driver に unit がない", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    quantity_formula: \"1\"\n" +
+					"    price_query: {serviceCode: AmazonEC2}\n")},
+		}, "unit は必須です"},
+		{"serviceCode がない", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n" +
+					"    price_query: {productFamily: Compute Instance}\n")},
+		}, "price_query.serviceCode は必須です"},
+		{"scope が不正", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n" +
+					"    price_query: {serviceCode: AmazonEC2, scope: worldwide}\n")},
+		}, "price_query.scope は"},
+		{"price_query が未定義の変数を参照", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n" +
+					"    price_query: {serviceCode: AmazonEC2, instanceType: \"{{instanceType}}\"}\n")},
+		}, "price_query.instanceType が未定義の変数を参照しています"},
+		{"when が未定義のパラメータを参照", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: \"1\"\n" +
+					"    when: {path: x}\n    price_query: {serviceCode: AmazonEC2}\n")},
+		}, "when が未定義のパラメータを参照しています"},
+		{"quantity_formula がない", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n" +
+					"    price_query: {serviceCode: AmazonEC2}\n")},
+		}, "quantity_formula は必須です"},
+		{"quantity_formula の構文エラー", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: \"1 +\"\n" +
+					"    price_query: {serviceCode: AmazonEC2}\n")},
+		}, "パースに失敗しました"},
+		{"quantity_formula が未定義の変数を参照", fstest.MapFS{
+			"ec2.yaml": &fstest.MapFile{Data: []byte(
+				"service: ec2\ndisplay: X\ndrivers:\n  - id: a\n    unit: Hrs\n    quantity_formula: count * 2\n" +
+					"    price_query: {serviceCode: AmazonEC2}\n")},
+		}, "quantity_formula が未定義の変数を参照しています"},
 		{"定義が空", fstest.MapFS{}, "1 件も定義がありません"},
 	}
 	for _, tt := range tests {
