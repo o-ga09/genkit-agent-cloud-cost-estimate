@@ -186,7 +186,8 @@
 * [ ] **ホスティング先**（Cloud Run / ECS / その他）
 * [ ] **保存した IR の保持期間とアクセス制御**（作成者のみか、リンクを知る人全員か）
 * [ ] **使用する LLM モデルの確定**（引き継ぎ資料の例は `googleai/gemini-flash-latest`）
-* [ ] **PNG 変換の実装手段**（resvg / headless Chrome）
+* [x] **PNG 変換の実装手段** → resvg を WASM（wazero）で埋め込む（[ADR-0014](adr/0014-resvg-wasm-for-png.md)）。
+  実行環境にフォントが必要
 * [x] **`quantity_formula` の式エンジン** → 四則演算だけの自前パーサ。変数名は IR の JSON
   フィールド名に揃える（[ADR-0013](adr/0013-self-written-formula-engine.md)）
 * [ ] **アイコンの取得元と再配布可否**（AWS 公式アイコンの利用条件の確認）

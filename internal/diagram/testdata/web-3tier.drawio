@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="genkit-agent-cloud-cost-estimate" type="device" agent="genkit-agent-cloud-cost-estimate">
+  <diagram id="architecture" name="Architecture">
+    <mxGraphModel dx="2119" dy="589" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"></mxCell>
+        <mxCell id="1" parent="0"></mxCell>
+        <mxCell id="vpc-main" value="VPC 10.0.0.0/16" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;container=1;collapsible=0;fillColor=#E3E9FD;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="1">
+          <mxGeometry x="41" y="41" width="1691" height="507" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="assets-s3" value="静的アセット" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FStorage%2FAmazon-Simple-Storage-Service-S3.svg;fillColor=#F7F8FE;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="1">
+          <mxGeometry x="1817" y="187" width="191" height="118" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="egress" value="インターネット egress" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAWS-Direct-Connect.svg;fillColor=#F7F8FE;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="1">
+          <mxGeometry x="1817" y="49" width="261" height="118" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.web-alb" value="ALB" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FElastic-Load-Balancing.svg;fillColor=#EDF0FD;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main">
+          <mxGeometry x="50" y="133" width="100" height="146" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-a" value="ap-northeast-1a" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;container=1;collapsible=0;fillColor=#EDF0FD;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main">
+          <mxGeometry x="857" y="115" width="779" height="298" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-c" value="ap-northeast-1c" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;container=1;collapsible=0;fillColor=#EDF0FD;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main">
+          <mxGeometry x="341" y="238" width="330" height="218" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-a.app-ec2-a" value="App EC2 t3.medium x2" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg;fillColor=#F7F8FE;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main.az-a">
+          <mxGeometry x="50" y="50" width="230" height="118" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-a.db-rds" value="RDS db.r6g.large (Multi-AZ)" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FDatabase%2FAmazon-RDS.svg;fillColor=#F7F8FE;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main.az-a">
+          <mxGeometry x="466" y="129" width="263" height="118" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-c.app-ec2-c" value="App EC2 t3.medium x2" style="rounded=0;whiteSpace=wrap;html=1;shape=label;imageAlign=left;imageVerticalAlign=middle;spacingLeft=40;imageWidth=24;imageHeight=24;image=https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg;fillColor=#F7F8FE;strokeColor=#0D32B2;fontColor=#0A0F25;" vertex="1" parent="vpc-main.az-c">
+          <mxGeometry x="50" y="50" width="230" height="118" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.(web-alb -&gt; az-a.app-ec2-a)[0]" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.web-alb" target="vpc-main.az-a.app-ec2-a">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.(web-alb -&gt; az-c.app-ec2-c)[0]" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.web-alb" target="vpc-main.az-c.app-ec2-c">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="231" y="283.92"></mxPoint>
+              <mxPoint x="231" y="388.42"></mxPoint>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.az-a.(app-ec2-a -&gt; db-rds)[0]" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.az-a.app-ec2-a" target="vpc-main.az-a.db-rds">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="vpc-main.(az-c.app-ec2-c -&gt; az-a.db-rds)[0]" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.az-c.app-ec2-c" target="vpc-main.az-a.db-rds">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="(vpc-main.az-a.app-ec2-a -&gt; assets-s3)[0]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.az-a.app-ec2-a" target="assets-s3">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="(vpc-main.web-alb -&gt; egress)[0]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D32B2;" edge="1" parent="1" source="vpc-main.web-alb" target="egress">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="231" y="210.92"></mxPoint>
+              <mxPoint x="231" y="115"></mxPoint>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

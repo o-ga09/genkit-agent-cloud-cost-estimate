@@ -48,6 +48,7 @@ func run() error {
 		return err
 	}
 
+	ctx := context.Background()
 	switch ext := filepath.Ext(*out); ext {
 	case "":
 		_, err := os.Stdout.WriteString(diagram.BuildD2(arch, cat))
@@ -55,13 +56,27 @@ func run() error {
 	case ".d2":
 		return write(*out, []byte(diagram.BuildD2(arch, cat)))
 	case ".svg":
-		svg, err := diagram.RenderSVG(context.Background(), arch, cat)
+		svg, err := diagram.RenderSVG(ctx, arch, cat)
 		if err != nil {
 			return err
 		}
 		return write(*out, svg)
+	case ".png":
+		png, err := diagram.RenderPNG(ctx, arch, cat, diagram.PNGOptions{
+			IconLoader: diagram.HTTPIconLoader(nil),
+		})
+		if err != nil {
+			return err
+		}
+		return write(*out, png)
+	case ".drawio", ".xml":
+		x, err := diagram.RenderDrawio(ctx, arch, cat)
+		if err != nil {
+			return err
+		}
+		return write(*out, x)
 	default:
-		return fmt.Errorf("未対応の出力形式です: %q（.svg または .d2）", ext)
+		return fmt.Errorf("未対応の出力形式です: %q（.svg / .png / .drawio / .d2）", ext)
 	}
 }
 
