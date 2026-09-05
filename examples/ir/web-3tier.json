@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1",
+  "provider": "aws",
+  "region": "ap-northeast-1",
+  "assumptions": {
+    "hoursPerDay": 24,
+    "daysPerMonth": 30,
+    "requestsPerMonth": 5000000,
+    "fxRate": 150,
+    "discountRate": 0
+  },
+  "resources": [
+    {
+      "id": "vpc-main",
+      "service": "vpc",
+      "label": "VPC 10.0.0.0/16"
+    },
+    {
+      "id": "web-alb",
+      "service": "alb",
+      "label": "ALB",
+      "parent": "vpc-main",
+      "params": {
+        "count": 1,
+        "processedGbPerMonth": 500
+      }
+    },
+    {
+      "id": "az-a",
+      "service": "az",
+      "label": "ap-northeast-1a",
+      "parent": "vpc-main"
+    },
+    {
+      "id": "app-ec2-a",
+      "service": "ec2",
+      "label": "App EC2 t3.medium x2",
+      "parent": "az-a",
+      "params": {
+        "instanceType": "t3.medium",
+        "count": 2,
+        "ebsGb": 30
+      }
+    },
+    {
+      "id": "db-rds",
+      "service": "rds",
+      "label": "RDS db.r6g.large (Multi-AZ)",
+      "parent": "az-a",
+      "params": {
+        "instanceClass": "db.r6g.large",
+        "engine": "postgresql",
+        "multiAz": true,
+        "storageGb": 200,
+        "count": 1
+      }
+    },
+    {
+      "id": "az-c",
+      "service": "az",
+      "label": "ap-northeast-1c",
+      "parent": "vpc-main"
+    },
+    {
+      "id": "app-ec2-c",
+      "service": "ec2",
+      "label": "App EC2 t3.medium x2",
+      "parent": "az-c",
+      "params": {
+        "instanceType": "t3.medium",
+        "count": 2,
+        "ebsGb": 30
+      }
+    },
+    {
+      "id": "assets-s3",
+      "service": "s3",
+      "label": "静的アセット",
+      "params": {
+        "storageGb": 500,
+        "storageClass": "Standard",
+        "getRequestsPerMonth": 3000000,
+        "putRequestsPerMonth": 100000
+      }
+    },
+    {
+      "id": "egress",
+      "service": "data_transfer",
+      "label": "インターネット egress",
+      "params": {
+        "path": "internet_egress",
+        "gbPerMonth": 1000
+      }
+    }
+  ],
+  "edges": [
+    { "from": "web-alb", "to": "app-ec2-a", "label": "HTTP" },
+    { "from": "web-alb", "to": "app-ec2-c", "label": "HTTP" },
+    { "from": "app-ec2-a", "to": "db-rds", "label": "SQL" },
+    { "from": "app-ec2-c", "to": "db-rds", "label": "SQL" },
+    { "from": "app-ec2-a", "to": "assets-s3" },
+    { "from": "web-alb", "to": "egress" }
+  ]
+}

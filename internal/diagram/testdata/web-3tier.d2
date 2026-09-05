@@ -1,0 +1,33 @@
+direction: right
+
+vpc-main: "VPC 10.0.0.0/16" {
+  icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAmazon-VPC.svg
+  web-alb: "ALB" {
+    icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FElastic-Load-Balancing.svg
+  }
+  az-a: "ap-northeast-1a" {
+    app-ec2-a: "App EC2 t3.medium x2" {
+      icon: https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg
+    }
+    db-rds: "RDS db.r6g.large (Multi-AZ)" {
+      icon: https://icons.terrastruct.com/aws%2FDatabase%2FAmazon-RDS.svg
+    }
+  }
+  az-c: "ap-northeast-1c" {
+    app-ec2-c: "App EC2 t3.medium x2" {
+      icon: https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg
+    }
+  }
+}
+assets-s3: "静的アセット" {
+  icon: https://icons.terrastruct.com/aws%2FStorage%2FAmazon-Simple-Storage-Service-S3.svg
+}
+egress: "インターネット egress" {
+  icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAWS-Direct-Connect.svg
+}
+vpc-main.web-alb -> vpc-main.az-a.app-ec2-a: "HTTP"
+vpc-main.web-alb -> vpc-main.az-c.app-ec2-c: "HTTP"
+vpc-main.az-a.app-ec2-a -> vpc-main.az-a.db-rds: "SQL"
+vpc-main.az-c.app-ec2-c -> vpc-main.az-a.db-rds: "SQL"
+vpc-main.az-a.app-ec2-a -> assets-s3
+vpc-main.web-alb -> egress

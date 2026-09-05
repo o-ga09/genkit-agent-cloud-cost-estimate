@@ -1,0 +1,18 @@
+# データ転送
+# MVP でモデル化するのはインターネット egress と AZ 間の 2 経路のみ（ADR-0011 / FR-CAT-6）。
+# NAT Gateway 処理料・リージョン間転送・VPC エンドポイントは未計上であり、
+# Excel の「未計上の項目」に明示する（FR-XLS-7）。
+service: data_transfer
+display: データ転送
+icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAWS-Direct-Connect.svg
+doc: 課金対象のデータ転送。経路ごとに 1 リソースとして表す。
+params:
+  path:
+    type: string
+    required: true
+    enum: [internet_egress, inter_az]
+    doc: 転送経路。internet_egress はインターネット向け送信、inter_az は AZ 間転送
+  gbPerMonth:
+    type: float
+    required: true
+    doc: 月間転送量 GB

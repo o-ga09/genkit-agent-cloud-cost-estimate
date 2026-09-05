@@ -3,8 +3,8 @@
 AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
 Genkit Go で実装する。
 
-> **ステータス: 設計フェーズ**
-> 現在はドキュメントのみ。実装はこれから着手する。
+> **ステータス: 実装中（M1 まで完了）**
+> IR から構成図（SVG）が出るところまで動く。単価取得・Excel 生成・対話はこれから。
 
 ## これは何か
 
@@ -18,6 +18,40 @@ Genkit Go で実装する。
 | 構成図 | SVG / PNG | レイアウトエンジンが座標を計算するため、矢印・枠・アイコンが必ず揃う |
 | 構成図（編集用） | drawio XML | 座標が揃った状態で渡るので、受け取った側が手で直せる |
 | 構成データ | JSON（IR） | 全成果物の正本。再生成に LLM を通さない |
+
+## 動かす
+
+```sh
+# IR JSON から構成図（SVG）を生成する
+go run ./cmd/render -in examples/ir/web-3tier.json -out out/web-3tier.svg
+
+# 生成される D2 ソースを確認する（-out 省略時は標準出力）
+go run ./cmd/render -in examples/ir/web-3tier.json
+```
+
+LLM は経由しない。IR JSON さえあれば図が出る。
+
+## 進捗
+
+| # | マイルストーン | 状態 |
+|---|---|---|
+| M0 | IR スキーマ確定 | 完了 |
+| M1 | IR + D2 レンダリング | 完了（SVG。PNG / drawio は未着手） |
+| M2 | catalog + PriceSource | catalog の枠のみ。`drivers` と単価取得は未着手 |
+| M3 | Excel 生成 | 未着手 |
+| M4 | estimate Flow | 未着手 |
+| M5 | intake agent + 選択 UI | 未着手 |
+| M6 | サーバーレス 4 サービス追加 | 未着手 |
+
+## パッケージ構成
+
+| パス | 役割 |
+|---|---|
+| `internal/ir` | IR の型定義・JSON 入出力・バリデーション |
+| `internal/catalog` | サービス定義 YAML の読み込み。`Resource.service` の値域と `params` のスキーマを供給する |
+| `internal/diagram` | IR → D2 ソース → SVG |
+| `cmd/render` | IR JSON から図を出す CLI |
+| `examples/ir` | 手書きの IR サンプル |
 
 ## 設計の核
 

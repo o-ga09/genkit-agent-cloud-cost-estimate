@@ -1,0 +1,14 @@
+# Elastic Load Balancing (Application Load Balancer)
+service: alb
+display: Application Load Balancer
+icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FElastic-Load-Balancing.svg
+doc: ALB。時間課金と LCU 課金の 2 要素からなる。
+params:
+  count:
+    type: int
+    default: 1
+    doc: ALB の数
+  processedGbPerMonth:
+    type: float
+    default: 0
+    doc: 月間の処理データ量 GB（LCU 算定に使う）

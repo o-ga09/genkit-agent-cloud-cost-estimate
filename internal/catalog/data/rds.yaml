@@ -1,0 +1,27 @@
+# Amazon RDS
+service: rds
+display: Amazon RDS
+icon: https://icons.terrastruct.com/aws%2FDatabase%2FAmazon-RDS.svg
+doc: RDS のデータベースインスタンス。
+params:
+  instanceClass:
+    type: string
+    required: true
+    doc: "インスタンスクラス（例: db.r6g.large）"
+  engine:
+    type: string
+    required: true
+    enum: [mysql, postgresql, mariadb, oracle, sqlserver, aurora-mysql, aurora-postgresql]
+    doc: データベースエンジン
+  multiAz:
+    type: bool
+    default: false
+    doc: Multi-AZ 配置かどうか
+  storageGb:
+    type: float
+    default: 20
+    doc: ストレージ容量 GB
+  count:
+    type: int
+    default: 1
+    doc: インスタンス数

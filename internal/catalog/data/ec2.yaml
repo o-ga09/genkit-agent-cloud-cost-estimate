@@ -1,0 +1,20 @@
+# Amazon EC2
+# drivers（price_query / quantity_formula）は M2 で追加する。
+# price_query は AWS の料金ページと突き合わせた初回レビューを必須とする（FR-CAT-5）。
+service: ec2
+display: Amazon EC2
+icon: https://icons.terrastruct.com/aws%2FCompute%2FAmazon-EC2.svg
+doc: EC2 インスタンス。アタッチする EBS もこのサービスの params で表す。
+params:
+  instanceType:
+    type: string
+    required: true
+    doc: "インスタンスタイプ（例: t3.medium）"
+  count:
+    type: int
+    default: 1
+    doc: 台数
+  ebsGb:
+    type: float
+    default: 0
+    doc: 1 台あたりの EBS (gp3) 容量 GB

@@ -1,0 +1,5 @@
+# VPC（図の入れ子用。それ自体には課金要素を持たない）
+service: vpc
+display: VPC
+icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAmazon-VPC.svg
+doc: 図の枠として使うグルーピング要素。VPC 自体は無料のため drivers を持たない。

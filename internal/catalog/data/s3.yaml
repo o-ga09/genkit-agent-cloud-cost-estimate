@@ -1,0 +1,23 @@
+# Amazon S3
+service: s3
+display: Amazon S3
+icon: https://icons.terrastruct.com/aws%2FStorage%2FAmazon-Simple-Storage-Service-S3.svg
+doc: S3 バケット。ストレージ量とリクエスト数で課金される。
+params:
+  storageGb:
+    type: float
+    required: true
+    doc: 保存データ量 GB
+  storageClass:
+    type: string
+    default: Standard
+    enum: [Standard, Standard-IA, One Zone-IA, Glacier Instant Retrieval]
+    doc: ストレージクラス
+  getRequestsPerMonth:
+    type: float
+    default: 0
+    doc: 月間 GET リクエスト数
+  putRequestsPerMonth:
+    type: float
+    default: 0
+    doc: 月間 PUT リクエスト数
