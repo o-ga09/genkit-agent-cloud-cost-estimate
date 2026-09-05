@@ -3,9 +3,9 @@
 AWS の構成をチャットで相談しながら決め、**コスト見積もり Excel** と **構成図** を出力するエージェント。
 Genkit Go で実装する。
 
-> **ステータス: 実装中（M3 まで完了）**
-> IR JSON から構成図（SVG）と見積もり Excel（3 シート・数式込み）が出るところまで動く。
-> LLM を使う対話部分はこれから。
+> **ステータス: 実装中（M4 まで完了）**
+> IR JSON から構成図（SVG / PNG / drawio）と見積もり Excel（3 シート・数式込み）が
+> Genkit の Flow として出るところまで動く。LLM を使う対話部分はこれから。
 
 ## これは何か
 
@@ -31,8 +31,11 @@ go run ./cmd/render -in examples/ir/web-3tier.json -out out/web-3tier.drawio
 # 生成される D2 ソースを確認する（-out 省略時は標準出力）
 go run ./cmd/render -in examples/ir/web-3tier.json
 
-# IR JSON から見積もり Excel を生成する
-go run ./cmd/estimate -in examples/ir/web-3tier.json -out out/estimate.xlsx
+# IR JSON から成果物一式（IR / SVG / drawio / Excel）を生成する
+go run ./cmd/estimate -in examples/ir/web-3tier.json -out-dir out
+
+# 形式を選ぶ（ir / svg / png / drawio / xlsx）
+go run ./cmd/estimate -in examples/ir/web-3tier.json -formats svg,png,xlsx
 ```
 
 LLM は経由しない。IR JSON さえあれば図と見積もりが出る。
@@ -40,8 +43,11 @@ LLM は経由しない。IR JSON さえあれば図と見積もりが出る。
 PNG は実行環境のフォントを使う（[ADR-0014](docs/adr/0014-resvg-wasm-for-png.md)）。
 macOS / Linux の一般的なパスを探すが、見つからない場合は `PNGOptions.FontData` で渡す。
 
-`cmd/estimate` は AWS Pricing MCP Server（`uvx` 経由）に接続するため、
-`pricing:*` 権限を持つ AWS 認証情報が必要。単価取得の疎通だけを確認する場合:
+`cmd/estimate` は `estimate` Flow を実行する。`GENKIT_ENV=dev` を付けると
+Genkit の Reflection API が立ち上がり、Dev UI から Flow を確認できる。
+
+AWS Pricing MCP Server（`uvx` 経由）に接続するため `pricing:*` 権限を持つ
+AWS 認証情報が必要。単価取得の疎通だけを確認する場合:
 
 ```sh
 AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
@@ -55,7 +61,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | M1 | IR + D2 レンダリング | 完了（SVG / PNG / drawio XML） |
 | M2 | catalog + PriceSource | 完了（基盤 5 サービスの drivers と MCP 経由の単価取得） |
 | M3 | Excel 生成 | 完了（3 シート・金額セルは全て数式） |
-| M4 | estimate Flow | 未着手 |
+| M4 | estimate Flow | 完了（`estimate` Flow に結合。LLM は通らない） |
 | M5 | intake agent + 選択 UI | 未着手 |
 | M6 | サーバーレス 4 サービス追加 | 未着手 |
 
@@ -70,8 +76,9 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | `internal/pricing` | `PriceSource` 抽象と、AWS Pricing MCP Server 実装（`awsmcp`） |
 | `internal/cost` | IR + catalog + 単価 → 見積もり明細 |
 | `internal/workbook` | 見積もり明細 → Excel（3 シート・数式） |
+| `internal/estimateflow` | 上記を結合した Genkit の `estimate` Flow。preview API に依存しない |
 | `cmd/render` | IR JSON から図を出す CLI |
-| `cmd/estimate` | IR JSON から見積もり Excel を出す CLI |
+| `cmd/estimate` | IR JSON から成果物一式を出す CLI（`estimate` Flow を実行する） |
 | `examples/ir` | 手書きの IR サンプル |
 
 ## 設計の核
