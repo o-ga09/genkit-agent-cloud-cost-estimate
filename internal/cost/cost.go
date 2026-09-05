@@ -26,7 +26,10 @@ type LineItem struct {
 	Label      string
 	DriverID   string
 	Unit       string
-	Query      pricing.PriceQuery
+	// Params は catalog の既定値で補完済みのパラメータ。
+	// Excel では数値パラメータが入力セルになる（FR-XLS-2）。
+	Params map[string]any
+	Query  pricing.PriceQuery
 	// Quantity は quantity_formula を評価した数量。
 	Quantity float64
 	// Formula は数量の式。Excel の数式に写像する（M3）。
@@ -106,6 +109,7 @@ func buildItem(
 		Label:      r.Label,
 		DriverID:   d.ID,
 		Unit:       d.Unit,
+		Params:     params,
 		Formula:    d.QuantityFormula,
 	}
 	if item.Label == "" {
@@ -227,3 +231,6 @@ func numeric(v any) (float64, bool) {
 		return 0, false
 	}
 }
+
+// Numeric は params の値を数値として返す。数値でない値（インスタンスタイプなど）は ok が false。
+func Numeric(v any) (float64, bool) { return numeric(v) }
