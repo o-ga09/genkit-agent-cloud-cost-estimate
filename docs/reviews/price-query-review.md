@@ -47,6 +47,23 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | dynamodb / read_request_units | AmazonDynamoDB | productFamily=Amazon DynamoDB PayPerRequest Throughput, group=DDB-ReadUnits | TX6BW4TWG2FZQMPQ | ReadRequestUnits | 0.0000001425 |
 | dynamodb / storage_gb_month | AmazonDynamoDB | productFamily=Database Storage, volumeType=Amazon DynamoDB - Indexed DataStore | 2HPSAWPXJ2JJJ6XY | GB-Mo | 0.285（無料枠 25GB を超えた分） |
 
+## 追加検証: NAT Gateway（2026-09-06 / ADR-0018）
+
+MVP 後の拡張として追加した `nat_gateway.yaml` の 2 driver。AWS Price List API に
+（`mcp__aws-pricing` 経由。MVP レビュー時と同じ AWS Price List API を参照する）
+catalog のフィルタをそのまま投げ、1 SKU に一意に解決すること・単位が一致することを確認した。
+検証リージョンは ap-northeast-1、レビュー時点の単価。
+
+| service / driver | serviceCode | 主なフィルタ | SKU | 単位 | 単価 (USD) |
+|---|---|---|---|---|---|
+| nat_gateway / nat_gateway_hours | AmazonEC2 | productFamily=NAT Gateway, groupDescription=Hourly charge for NAT Gateways | CA23TN2NAN47KGCF | Hrs | 0.062 |
+| nat_gateway / nat_gateway_gb_processed | AmazonEC2 | productFamily=NAT Gateway, groupDescription=Charge for per GB data processed by NatGateways | 3Z2F4ZNXEMZB88ED | GB | 0.062 |
+
+`productFamily=NAT Gateway` だけでは、クラシック版（時間課金・データ処理料）に加えて
+Provisioned Bandwidth オプション版（時間課金・データ処理料・Gbps 課金）と
+Regional NAT Gateway（新世代。時間課金・データ処理料）の 6 SKU が該当し一意に絞れない。
+`groupDescription` の完全一致でクラシック版の 2 つだけに絞っている。
+
 ## レビューで確認した点と判断
 
 * **フィルタは 1 SKU に絞れていること。** 複数該当した場合、コードは 1 件目を採らずエラーにする
@@ -75,7 +92,8 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 * EBS の追加 IOPS / スループット、RDS のバックアップストレージと追加 IOPS
 * S3 のライフサイクル移行リクエスト、データ取り出し料金
 * インターネット egress の無料枠（月 100GB）
-* NAT Gateway 処理料、リージョン間転送、VPC エンドポイント、CloudFront 経由の転送（[ADR-0011](../adr/0011-aws-first-and-limited-data-transfer-model.md)）
+* リージョン間転送、VPC エンドポイント、CloudFront 経由の転送（[ADR-0011](../adr/0011-aws-first-and-limited-data-transfer-model.md)）
+* NAT Gateway の Provisioned Bandwidth オプションと Regional NAT Gateway（新世代）（[ADR-0018](../adr/0018-nat-gateway-cost-model.md)）
 * ライセンス込みの RDS エンジン（Oracle / SQL Server）
 * Lambda の無料枠、プロビジョンドコンカレンシー、エフェメラルストレージの追加分
 * Fargate のエフェメラルストレージ追加分と Windows タスク

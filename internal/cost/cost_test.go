@@ -106,6 +106,55 @@ func TestBuild_EC2(t *testing.T) {
 	}
 }
 
+// NAT Gateway は時間課金とデータ処理料の 2 driver からなる（ADR-0018）。
+func TestBuild_NATGateway(t *testing.T) {
+	cat := builtinCatalog(t)
+	arch := &ir.Architecture{
+		Provider: ir.ProviderAWS, Region: "ap-northeast-1",
+		Assumptions: ir.Assumptions{HoursPerDay: 24, DaysPerMonth: 30, FxRate: 150},
+		Resources: []ir.Resource{{
+			ID: "nat-a", Service: "nat_gateway", Label: "NAT Gateway",
+			Params: map[string]any{"count": float64(1), "gbProcessedPerMonth": float64(300)},
+		}},
+	}
+	rec := unitsFor(t, arch, cat)
+	est, err := cost.Build(context.Background(), arch, cat, rec)
+	if err != nil {
+		t.Fatalf("明細の組み立てに失敗しました: %v", err)
+	}
+	if len(est.Items) != 2 {
+		t.Fatalf("明細が %d 行、want 2（時間課金とデータ処理料）", len(est.Items))
+	}
+
+	hours := est.Items[0]
+	if hours.DriverID != "nat_gateway_hours" {
+		t.Fatalf("1 行目 = %q, want nat_gateway_hours", hours.DriverID)
+	}
+	if hours.Quantity != 1*24*30 {
+		t.Errorf("数量 = %v, want %v", hours.Quantity, 1*24*30)
+	}
+	if got := hours.Query.Value("productFamily"); got != "NAT Gateway" {
+		t.Errorf("productFamily = %q, want NAT Gateway", got)
+	}
+	if got := hours.Query.Value("groupDescription"); got != "Hourly charge for NAT Gateways" {
+		t.Errorf("groupDescription = %q", got)
+	}
+	if hours.Query.Service != "AmazonEC2" {
+		t.Errorf("serviceCode = %q, want AmazonEC2", hours.Query.Service)
+	}
+
+	processed := est.Items[1]
+	if processed.DriverID != "nat_gateway_gb_processed" {
+		t.Fatalf("2 行目 = %q, want nat_gateway_gb_processed", processed.DriverID)
+	}
+	if processed.Quantity != 300 {
+		t.Errorf("数量 = %v, want 300", processed.Quantity)
+	}
+	if got := processed.Query.Value("groupDescription"); got != "Charge for per GB data processed by NatGateways" {
+		t.Errorf("groupDescription = %q", got)
+	}
+}
+
 // catalog の既定値が params の補完に使われる（count 未指定なら 1 台）。
 func TestBuild_UsesCatalogDefaults(t *testing.T) {
 	cat := builtinCatalog(t)

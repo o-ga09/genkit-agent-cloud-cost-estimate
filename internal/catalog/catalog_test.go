@@ -16,10 +16,11 @@ func TestBuiltin_LoadsAllServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("同梱 catalog の読み込みに失敗しました: %v", err)
 	}
-	// MVP の 9 サービス（ADR-0008）と、図の入れ子に使う課金要素なしの 2 種。
+	// MVP の 9 サービス（ADR-0008）+ NAT Gateway（ADR-0018）と、
+	// 図の入れ子に使う課金要素なしの 2 種。
 	want := []string{
 		"alb", "apigateway", "az", "data_transfer", "dynamodb",
-		"ec2", "ecs", "lambda", "rds", "s3", "vpc",
+		"ec2", "ecs", "lambda", "nat_gateway", "rds", "s3", "vpc",
 	}
 	if got := c.ServiceNames(); !slices.Equal(got, want) {
 		t.Errorf("ServiceNames() = %v, want %v", got, want)
@@ -78,7 +79,7 @@ func TestBuiltin_AllBillableServicesHaveDrivers(t *testing.T) {
 	}
 	billable := []string{
 		"ec2", "alb", "rds", "s3", "data_transfer",
-		"lambda", "ecs", "apigateway", "dynamodb",
+		"lambda", "ecs", "apigateway", "dynamodb", "nat_gateway",
 	}
 	for _, name := range billable {
 		svc, ok := c.Get(name)

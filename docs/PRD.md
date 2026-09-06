@@ -68,8 +68,8 @@ LLM には金額を一切出させない。出させるのは「ALB×1、EC2 t3.
 * 実際の請求データの分析（Cost Explorer の代替ではない）
 * Reserved Instances / Savings Plans / スポットの正確な価格計算 → [ADR-0009](adr/0009-on-demand-pricing-only.md)
 * GCP をはじめとする AWS 以外のプロバイダ → [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md)
-* 対応 9 サービス以外の見積もり → [ADR-0008](adr/0008-mvp-service-scope.md)
-* NAT Gateway 処理料など主要 2 経路以外のデータ転送コスト → [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md)
+* 対応 9 サービス + NAT Gateway（[ADR-0018](adr/0018-nat-gateway-cost-model.md)）以外の見積もり → [ADR-0008](adr/0008-mvp-service-scope.md)
+* リージョン間転送・VPC エンドポイント・CloudFront 経由など、NAT Gateway 以外のデータ転送コスト → [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md)
 * 構成図の細かなレイアウト調整（レイアウトエンジンに委ねる） → [ADR-0003](adr/0003-d2-for-diagram-rendering.md)
 
 ## 5. ユーザー体験
@@ -119,6 +119,8 @@ LLM には金額を一切出させない。出させるのは「ALB×1、EC2 t3.
 | 料金モデル | オンデマンドのみ（割引は Assumptions の割引率セルで表現） | [ADR-0009](adr/0009-on-demand-pricing-only.md) |
 | データ転送 | インターネット egress と AZ 間の 2 経路のみ | [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md) |
 | 配布形態 | Web サービス | [ADR-0010](adr/0010-web-service-as-delivery-form.md) |
+
+MVP 後の拡張: NAT Gateway（時間課金 + データ処理料）を catalog に追加した（[ADR-0018](adr/0018-nat-gateway-cost-model.md)）。
 
 ## 7. 成功指標
 

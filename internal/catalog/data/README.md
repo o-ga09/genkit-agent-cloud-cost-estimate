@@ -54,7 +54,8 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 
 ## 現状
 
-MVP の 9 サービス（ec2 / alb / rds / s3 / data_transfer / lambda / ecs / apigateway / dynamodb）の
+MVP の 9 サービス（ec2 / alb / rds / s3 / data_transfer / lambda / ecs / apigateway / dynamodb）+
+MVP 後の拡張で追加した nat_gateway（[ADR-0018](../../../docs/adr/0018-nat-gateway-cost-model.md)）の
 drivers が入っている。
 
 `vpc` と `az` は課金要素を持たないグルーピング用の定義で、図の入れ子（FR-IR-5 / FR-DIA-3）に使う。

@@ -272,7 +272,7 @@ func TestBuild_Notes(t *testing.T) {
 	all := text.String()
 	for _, want := range []string{
 		"オンデマンド単価に基づく", "Savings Plans",
-		"未計上の項目", "NAT Gateway", "段階課金のうち、採用した階層",
+		"未計上の項目", "VPC エンドポイント経由の転送", "段階課金のうち、採用した階層",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("Estimate シートに %q が含まれていません", want)

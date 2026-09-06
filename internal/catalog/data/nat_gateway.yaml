@@ -1,0 +1,36 @@
+# NAT Gateway
+# MVP 後の拡張候補として ADR-0008 / ADR-0011 で明示されていたサービス。
+# ADR-0018 で追加した。時間課金とデータ処理料の 2 要素からなる。
+# Provisioned Bandwidth オプションと Regional NAT Gateway（新世代）は対象外
+# （groupDescription で明示的に区別している。ADR-0018 参照）。
+service: nat_gateway
+display: NAT Gateway
+icon: https://icons.terrastruct.com/aws%2FNetworking%20%26%20Content%20Delivery%2FAmazon-VPC_NAT-Gateway_light-bg.svg
+doc: NAT Gateway。VPC / AZ の配下（プライベートサブネット側）に置く。
+params:
+  count:
+    type: int
+    default: 1
+    doc: NAT Gateway の数（通常は可用性のため AZ ごとに 1）
+  gbProcessedPerMonth:
+    type: float
+    required: true
+    doc: 月間のデータ処理量 GB
+drivers:
+  - id: nat_gateway_hours
+    unit: Hrs
+    price_query:
+      serviceCode: AmazonEC2
+      productFamily: NAT Gateway
+      groupDescription: Hourly charge for NAT Gateways
+    quantity_formula: count * hoursPerDay * daysPerMonth
+  - id: nat_gateway_gb_processed
+    unit: GB
+    doc: >-
+      Provisioned Bandwidth オプションを使う NAT Gateway の課金
+      （groupDescription が異なる）は対象外
+    price_query:
+      serviceCode: AmazonEC2
+      productFamily: NAT Gateway
+      groupDescription: Charge for per GB data processed by NatGateways
+    quantity_formula: gbProcessedPerMonth

@@ -94,6 +94,7 @@
 | FR-CAT-4 | `list_supported_services` ツールが catalog の内容を LLM に返す | LLM が catalog にないサービスを提案しない | [ADR-0005](adr/0005-cost-model-catalog-yaml.md) |
 | FR-CAT-5 | MVP で以下 9 サービスの catalog を用意する: EC2（EBS 含む）/ ALB / RDS / S3 / データ転送 / Lambda / ECS(Fargate) / API Gateway / DynamoDB | 9 ファイルが存在し、各 `price_query` のレビュー記録がある | [ADR-0008](adr/0008-mvp-service-scope.md) |
 | FR-CAT-6 | データ転送 catalog はインターネット egress と AZ 間の 2 経路のみを定義する | 定義されている経路が 2 つであることをレビューで確認する | [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md) |
+| FR-CAT-7 | MVP 後の拡張として NAT Gateway（時間課金 + データ処理料）の catalog を用意する | `nat_gateway.yaml` が存在し、`price_query` のレビュー記録がある | [ADR-0018](adr/0018-nat-gateway-cost-model.md) |
 
 ## 7. 機能要件: Excel 生成
 
@@ -197,7 +198,9 @@
 * [ ] **アイコンの取得元と再配布可否**（AWS 公式アイコンの利用条件の確認）
   * 暫定で `icons.terrastruct.com` の URL を catalog から参照している（アセットは同梱・再配布していない）
 * [ ] **GCP 対応の着手時期**
-* [ ] **NAT Gateway 対応の着手時期**（未計上による過小評価が大きい典型のため優先度は高い）
+* [x] **NAT Gateway 対応の着手時期** → 対応済み。catalog に `nat_gateway`
+  （時間課金 + データ処理料）を追加した（[ADR-0018](adr/0018-nat-gateway-cost-model.md)）。
+  Provisioned Bandwidth オプションと Regional NAT Gateway（新世代）は引き続き未計上
 
 ---
 
@@ -206,7 +209,8 @@
 * 実際の請求データの分析（Cost Explorer / Billing 系の代替ではない）
 * Reserved Instances / Savings Plans / スポットの正確な価格計算
 * AWS 以外のクラウドプロバイダ
-* 対応 9 サービス以外の見積もり
-* NAT Gateway 処理料・リージョン間転送・VPC エンドポイント・CloudFront 経由のデータ転送コスト
+* 対応 9 サービス + NAT Gateway（[ADR-0018](adr/0018-nat-gateway-cost-model.md)）以外の見積もり
+* リージョン間転送・VPC エンドポイント・CloudFront 経由のデータ転送コスト、
+  NAT Gateway の Provisioned Bandwidth オプションと Regional NAT Gateway（新世代）
 * 構成図の細かなレイアウト調整機能（座標指定 UI 等）
 * 月次推移シート・3 年 TCO シート（同じ入力セルを参照する数式として後から追加可能）

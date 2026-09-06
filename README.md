@@ -5,7 +5,8 @@ Genkit Go で実装する。
 
 > **ステータス: 実装中（M7 まで完了）**
 > チャットで構成を相談し、確認のうえで構成図（SVG / PNG / drawio）と
-> 見積もり Excel を生成できる。MVP の 9 サービスに対応済み。
+> 見積もり Excel を生成できる。MVP の 9 サービス + NAT Gateway
+> （[ADR-0018](docs/adr/0018-nat-gateway-cost-model.md)）の計 10 サービスに対応済み。
 > ブラウザ（チャット + 選択 UI）から一連の操作ができる（`cmd/server` + `web/`）。
 > `cmd/server` は API 専用で、フロントエンドはオブジェクトストレージ + CDN
 > （S3 / R2 等）から別オリジンで配信する想定（[ADR-0017](docs/adr/0017-frontend-served-from-object-storage-cdn.md)）。
@@ -169,6 +170,10 @@ LLM → Architecture ─┼→ drawio XML（手直ししたい人向け）
 | 料金モデル | オンデマンドのみ（割引は Assumptions の割引率セルで表現） |
 | データ転送 | インターネット egress と AZ 間の 2 経路のみ |
 | 配布形態 | Web サービス |
+
+MVP 後の拡張: NAT Gateway（時間課金 + データ処理料）を catalog に追加した
+（[ADR-0018](docs/adr/0018-nat-gateway-cost-model.md)）。Provisioned Bandwidth オプションと
+Regional NAT Gateway（新世代）は引き続き未計上。
 
 詳細は [docs/PRD.md](docs/PRD.md) を参照。
 

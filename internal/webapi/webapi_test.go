@@ -23,8 +23,8 @@ type fakeAgent struct {
 	turn *intake.Turn
 	err  error
 
-	startedWith string
-	saidWith    string
+	startedWith  string
+	saidWith     string
 	answeredWith map[string]intake.Answer
 }
 
@@ -258,7 +258,7 @@ func TestHandleSaveArchitecture(t *testing.T) {
 		t.Fatalf("status = %d, want 201, body=%v", resp.StatusCode, body)
 	}
 	got := decodeJSON[struct {
-		ID           string          `json:"id"`
+		ID           string           `json:"id"`
 		Architecture *ir.Architecture `json:"architecture"`
 	}](t, resp)
 	if got.ID == "" {

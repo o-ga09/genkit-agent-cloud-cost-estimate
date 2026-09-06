@@ -14,8 +14,11 @@ const (
 
 // notAccounted は「未計上の項目」（FR-XLS-7 / ADR-0011）。
 // catalog がモデル化していないコストを見積もりの利用者に明示する。
+//
+// NAT Gateway の時間課金とデータ処理料は ADR-0018 で catalog（nat_gateway）に
+// 追加したため、ここには含めない。Provisioned Bandwidth オプションと
+// Regional NAT Gateway（新世代）は引き続き未計上（catalog の doc 参照）。
 var notAccounted = []string{
-	"NAT Gateway の時間課金とデータ処理料",
 	"リージョン間のデータ転送、VPC エンドポイント経由の転送、CloudFront 経由の転送",
 	"インターネット向け送信の無料枠（月 100GB）",
 	"ALB の LCU のうち、新規接続数・アクティブ接続数・ルール評価数の次元",
