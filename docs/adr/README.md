@@ -27,6 +27,7 @@
 | [0014](0014-resvg-wasm-for-png.md) | SVG → PNG の変換に resvg を WASM（wazero）で埋め込む | accepted |
 | [0015](0015-intake-custom-turn-loop.md) | intake agent は自前の対話ループを持ち、preview API の利用を interrupt ツールだけに絞る | accepted |
 | [0016](0016-react-frontend-with-no-mvp-auth.md) | Web UI のフロントエンドは React、認証は MVP では未実装とする | accepted |
+| [0017](0017-frontend-served-from-object-storage-cdn.md) | フロントエンドはオブジェクトストレージ + CDN から配信し、cmd/server は API 専用とする | accepted |
 
 ## 関連ドキュメント
 

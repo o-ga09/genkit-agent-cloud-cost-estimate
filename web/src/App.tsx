@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import { ApiError, loadArchitecture, runEstimate, saveArchitecture, sendAnswers, sendMessage, startSession } from './api'
+import { ApiError, apiUrl, loadArchitecture, runEstimate, saveArchitecture, sendAnswers, sendMessage, startSession } from './api'
 import { ArchitectureSummary } from './components/ArchitectureSummary'
 import { ArtifactList } from './components/ArtifactList'
 import { ChoiceForm } from './components/ChoiceForm'
@@ -192,7 +192,7 @@ function App() {
             region={estimate.region}
             lines={estimate.lines}
             failedLines={estimate.failedLines}
-            artifacts={estimate.artifacts}
+            artifacts={estimate.artifacts.map((a) => ({ ...a, downloadUrl: apiUrl(a.downloadUrl) }))}
             permalink={`${window.location.origin}${window.location.pathname}?id=${architectureId}`}
           />
           <div className="actions">

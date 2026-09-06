@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/catalog"
@@ -57,6 +58,12 @@ type Server struct {
 	NewID func() string
 	// Now は時刻取得方法。nil なら time.Now。
 	Now func() time.Time
+	// AllowedOrigins は CORS で許可するオリジン一覧。
+	//
+	// フロントエンドをオブジェクトストレージ + CDN（S3 / R2 等）から配信する場合、
+	// API サーバーとは別オリジンになるため設定が要る。空なら CORS ヘッダを付けない
+	// （同一オリジン配信のみを想定した既定動作）。"*" を含めると全オリジンを許可する。
+	AllowedOrigins []string
 }
 
 func (s *Server) newID() string {
@@ -83,8 +90,12 @@ func (s *Server) now() time.Time {
 }
 
 // Routes は API のハンドラを組み立てる。
+//
+// フロントエンドと別オリジンで動かす前提（オブジェクトストレージ + CDN 配信）のため、
+// 静的ファイルはここでは配信しない。API 専用のハンドラだけを持つ。
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", handleHealthz)
 	mux.HandleFunc("POST /api/sessions", s.handleStartSession)
 	mux.HandleFunc("POST /api/sessions/{id}/messages", s.handleSay)
 	mux.HandleFunc("POST /api/sessions/{id}/answers", s.handleAnswer)
@@ -92,7 +103,42 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/architectures/{id}", s.handleLoadArchitecture)
 	mux.HandleFunc("POST /api/architectures/{id}/estimate", s.handleEstimate)
 	mux.HandleFunc("GET /api/architectures/{id}/artifacts/{format}", s.handleDownloadArtifact)
-	return mux
+	return s.withCORS(mux)
+}
+
+func handleHealthz(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+
+// withCORS はフロントエンドが別オリジン（S3 / R2 + CDN 等）から叩けるように
+// CORS ヘッダを付ける。AllowedOrigins が空なら何もしない（既定は同一オリジンのみ）。
+//
+// CORS はアクセス制御ではなくブラウザ側の読み取り許可の仕組みでしかない
+// （FR-WEB-5 の認証の代わりにはならない）。認証は別途必要になる。
+func (s *Server) withCORS(h http.Handler) http.Handler {
+	if len(s.AllowedOrigins) == 0 {
+		return h
+	}
+	allowAll := slices.Contains(s.AllowedOrigins, "*")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && (allowAll || slices.Contains(s.AllowedOrigins, origin)) {
+			if allowAll {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

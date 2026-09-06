@@ -7,6 +7,8 @@ Genkit Go で実装する。
 > チャットで構成を相談し、確認のうえで構成図（SVG / PNG / drawio）と
 > 見積もり Excel を生成できる。MVP の 9 サービスに対応済み。
 > ブラウザ（チャット + 選択 UI）から一連の操作ができる（`cmd/server` + `web/`）。
+> `cmd/server` は API 専用で、フロントエンドはオブジェクトストレージ + CDN
+> （S3 / R2 等）から別オリジンで配信する想定（[ADR-0017](docs/adr/0017-frontend-served-from-object-storage-cdn.md)）。
 > 認証（FR-WEB-5）は未実装（[未決事項](docs/requirements.md#12-未決事項)）。
 
 ## これは何か
@@ -42,12 +44,18 @@ go run ./cmd/estimate -in examples/ir/web-3tier.json -formats svg,png,xlsx
 # チャットで構成を相談してから生成する（要 GEMINI_API_KEY・CLI 版）
 GEMINI_API_KEY=... go run ./cmd/chat -session my-estimate
 
-# 同じ対話を Web サービスとして提供する（要 GEMINI_API_KEY）
+# 同じ対話を Web サービスとして提供する（要 GEMINI_API_KEY）。cmd/server は API 専用
 GEMINI_API_KEY=... go run ./cmd/server -addr :8080
 # 別ターミナルでフロントエンドを開発モードで動かす場合（:5173 → :8080 に proxy）
 cd web && npm install && npm run dev
-# 本番相当で確認する場合は先に `cd web && npm run build` してから cmd/server だけ動かす
-# （既定で web/dist を静的配信する）
+
+# 本番: フロントエンドは S3 / R2 + CDN 等にビルド成果物をアップロードして配信し、
+# cmd/server 側でそのオリジンを CORS 許可する（詳細は web/README.md）
+GEMINI_API_KEY=... go run ./cmd/server -allowed-origins https://app.example.com
+
+# 簡易モード: CDN を使わず cmd/server 自身に配信させる場合
+cd web && npm run build && cd ..
+go run ./cmd/server -static-dir web/dist
 ```
 
 LLM は経由しない。IR JSON さえあれば図と見積もりが出る。
@@ -95,8 +103,8 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | `cmd/render` | IR JSON から図を出す CLI |
 | `cmd/estimate` | IR JSON から成果物一式を出す CLI（`estimate` Flow を実行する） |
 | `cmd/chat` | チャットで構成を相談し、確認後に成果物を生成する CLI |
-| `cmd/server` | `internal/webapi` を HTTP サーバーとして起動し、`web/dist` を静的配信する |
-| `web` | フロントエンド（React + TypeScript + Vite）。チャット + 選択 UI |
+| `cmd/server` | `internal/webapi` を HTTP サーバーとして起動する API 専用コマンド（`-static-dir` 指定時のみ静的配信も行う簡易モード） |
+| `web` | フロントエンド（React + TypeScript + Vite）。チャット + 選択 UI。本番はオブジェクトストレージ + CDN から配信する想定 |
 | `examples/ir` | 手書きの IR サンプル（3 層 Web / サーバーレス API） |
 
 ## 設計の核
@@ -150,7 +158,7 @@ LLM → Architecture ─┼→ drawio XML（手直ししたい人向け）
 | 構成図 | [D2](https://d2lang.com/)（Go ライブラリとして import） | [ADR-0003](docs/adr/0003-d2-for-diagram-rendering.md) |
 | Excel | [excelize](https://github.com/xuri/excelize) | [ADR-0006](docs/adr/0006-excelize-with-formula-cells.md) |
 | 単価取得 | AWS Pricing MCP Server（`PriceSource` 抽象の背後） | [ADR-0004](docs/adr/0004-aws-pricing-mcp-server-behind-pricesource.md) |
-| フロントエンド | React + TypeScript + Vite（ビルド時のみ Node.js が要る。実行時は静的ファイル） | [ADR-0016](docs/adr/0016-react-frontend-with-no-mvp-auth.md) |
+| フロントエンド | React + TypeScript + Vite（ビルド時のみ Node.js が要る。実行時は静的ファイル）。オブジェクトストレージ + CDN から配信 | [ADR-0016](docs/adr/0016-react-frontend-with-no-mvp-auth.md) / [ADR-0017](docs/adr/0017-frontend-served-from-object-storage-cdn.md) |
 
 ## MVP のスコープ
 

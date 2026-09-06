@@ -1,4 +1,8 @@
-// Command server は Web サービスとして配布する（ADR-0010）。
+// Command server は Web サービスの API を提供する（ADR-0010）。
+//
+// フロントエンド（web/）はオブジェクトストレージ + CDN（S3 / R2 等）から
+// 別オリジンで配信する想定で、このコマンドは API 専用である
+// （-static-dir を指定すればビルド成果物を配信する簡易モードも使える）。
 //
 // ブラウザからチャット + 選択 UI で構成を相談し（FR-WEB-1）、
 // 構成図 SVG / PNG / drawio XML / Excel をダウンロードできる（FR-WEB-2）。
@@ -8,7 +12,11 @@
 // 認証（FR-WEB-5）は requirements.md の未決事項であり、このコマンド単体では
 // 実装していない。セルフホストする場合はリバースプロキシ側でアクセス制御すること。
 //
-//	GEMINI_API_KEY=... go run ./cmd/server -addr :8080
+//	# API サーバーのみ（フロントエンドは S3 / R2 + CDN から別途配信する）
+//	GEMINI_API_KEY=... go run ./cmd/server -addr :8080 -allowed-origins https://app.example.com
+//
+//	# 簡易モード（ビルド成果物をこのプロセスからも配信する）
+//	GEMINI_API_KEY=... go run ./cmd/server -static-dir web/dist
 package main
 
 import (
@@ -43,7 +51,11 @@ func main() {
 
 func run() error {
 	addr := flag.String("addr", ":8080", "リッスンアドレス")
-	staticDir := flag.String("static-dir", "web/dist", "フロントエンド（React）のビルド成果物のディレクトリ")
+	staticDir := flag.String("static-dir", "",
+		"フロントエンドのビルド成果物のディレクトリ。空なら配信しない（S3/R2 + CDN 等、別オリジンでの配信を想定）")
+	allowedOrigins := flag.String("allowed-origins", "",
+		"CORS で許可するオリジン（カンマ区切り）。フロントエンドを別オリジン（S3/R2 + CDN 等）で"+
+			"配信する場合はそのオリジンを指定する。\"*\" で全オリジン許可。空なら CORS ヘッダを付けない")
 	dataDir := flag.String("data-dir", ".data/architectures", "保存済み構成 JSON の保存先（FR-WEB-3）")
 	model := flag.String("model", intake.DefaultModel, "使用するモデル")
 	mcpCommand := flag.String("mcp-command", "uvx", "AWS Pricing MCP Server を起動するコマンド")
@@ -83,28 +95,46 @@ func run() error {
 			Prices:  src,
 			PNG:     diagram.PNGOptions{IconLoader: diagram.HTTPIconLoader(nil)},
 		}},
-		Catalog: cat,
-		Store:   store,
+		Catalog:        cat,
+		Store:          store,
+		AllowedOrigins: parseOrigins(*allowedOrigins),
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/api/", srv.Routes())
-	mux.Handle("/", spaHandler(*staticDir))
+	apiHandler := srv.Routes()
+	handler := apiHandler
+	if *staticDir != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/api/", apiHandler)
+		mux.Handle("/healthz", apiHandler)
+		mux.Handle("/", spaHandler(*staticDir))
+		handler = mux
+	}
 
 	httpServer := &http.Server{
 		Addr:              *addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	log.Printf("listening on %s (static: %s, data: %s)", *addr, *staticDir, *dataDir)
+	log.Printf("listening on %s (static: %q, allowed-origins: %v, data: %s)",
+		*addr, *staticDir, srv.AllowedOrigins, *dataDir)
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-// spaHandler は React SPA の静的ファイルを配信する。
+func parseOrigins(s string) []string {
+	var out []string
+	for o := range strings.SplitSeq(s, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// spaHandler は React SPA の静的ファイルを配信する（簡易モード用）。
 // 存在しないパス（クライアントサイドルーティング用）は index.html にフォールバックする。
 func spaHandler(dir string) http.Handler {
 	fileServer := http.FileServer(http.Dir(dir))

@@ -2,10 +2,20 @@ import type { Answer, Architecture, EstimateResult, Turn } from './types'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
+// API サーバーのベース URL。フロントエンドをオブジェクトストレージ + CDN
+// （S3 / R2 等）から配信する場合、API とはオリジンが異なるため絶対 URL が要る。
+// ビルド時に VITE_API_BASE_URL を設定する（例: https://api.example.com）。
+// 未設定なら相対パス（同一オリジン配信・ローカル開発時の vite proxy を想定）。
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '')
+
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`
+}
+
 class ApiError extends Error {}
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
+  const res = await fetch(apiUrl(path), init)
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`
     try {
