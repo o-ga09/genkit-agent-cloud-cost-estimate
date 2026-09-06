@@ -31,6 +31,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
 
@@ -60,6 +62,11 @@ func run() error {
 	model := flag.String("model", intake.DefaultModel, "使用するモデル")
 	mcpCommand := flag.String("mcp-command", "uvx", "AWS Pricing MCP Server を起動するコマンド")
 	mcpArgs := flag.String("mcp-args", "awslabs.aws-pricing-mcp-server@latest", "起動コマンドの引数（空白区切り）")
+	sessionStore := flag.String("session-store", "memory",
+		"対話セッションの保存先。\"memory\"（既定、プロセス内のみ）または \"dynamodb\"（requirements.md の"+
+			"未決事項「ホスティング先」→ AWS の決定を受けた本番向け）")
+	sessionTable := flag.String("dynamodb-session-table", "",
+		"-session-store=dynamodb 指定時のテーブル名。パーティションキー \"id\"（S）のみを持つ想定")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -69,7 +76,12 @@ func run() error {
 		genkit.WithExperimental(),
 	)
 
-	agent, err := intake.New(g, intake.Options{Model: *model})
+	sessions, err := newSessionStore(ctx, *sessionStore, *sessionTable)
+	if err != nil {
+		return err
+	}
+
+	agent, err := intake.New(g, intake.Options{Model: *model, Store: sessions})
 	if err != nil {
 		return fmt.Errorf("intake agent を初期化できませんでした: %w", err)
 	}
@@ -122,6 +134,25 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// newSessionStore は -session-store の指定に応じたセッションストアを作る。
+func newSessionStore(ctx context.Context, kind, tableName string) (intake.SessionStore, error) {
+	switch kind {
+	case "", "memory":
+		return intake.NewMemoryStore(), nil
+	case "dynamodb":
+		if tableName == "" {
+			return nil, errors.New("-session-store=dynamodb には -dynamodb-session-table の指定が必要です")
+		}
+		cfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("AWS の設定を読み込めませんでした: %w", err)
+		}
+		return intake.NewDynamoStore(dynamodb.NewFromConfig(cfg), tableName), nil
+	default:
+		return nil, fmt.Errorf("未対応の -session-store です: %q（memory または dynamodb）", kind)
+	}
 }
 
 func parseOrigins(s string) []string {

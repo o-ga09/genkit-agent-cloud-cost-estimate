@@ -4,85 +4,68 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/intake"
 )
 
 type startSessionRequest struct {
-	Message string `json:"message"`
+	Message string `json:"message" validate:"required"`
 }
 
 type messageRequest struct {
-	Message string `json:"message"`
+	Message string `json:"message" validate:"required"`
 }
 
 type answerRequest struct {
-	Answers map[string]intake.Answer `json:"answers"`
+	Answers map[string]intake.Answer `json:"answers" validate:"min=1"`
 }
 
 // handleStartSession は新しい対話を始める（FR-CHT-1）。
 // セッション ID はサーバー側で採番し、以降のやり取りはそれを使う。
-func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleStartSession(c *echo.Context) error {
 	var req startSessionRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+	if err := bindAndValidate(c, &req); err != nil {
+		return writeError(c, http.StatusBadRequest, err)
 	}
-	if req.Message == "" {
-		writeError(w, http.StatusBadRequest, errors.New("message は必須です"))
-		return
-	}
-	turn, err := s.Agent.Start(r.Context(), s.newID(), req.Message)
+	turn, err := s.Agent.Start(c.Request().Context(), s.newID(), req.Message)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+		return writeError(c, http.StatusInternalServerError, err)
 	}
-	writeJSON(w, http.StatusOK, turn)
+	return writeJSON(c, http.StatusOK, turn)
 }
 
 // handleSay は利用者の自由入力を対話に足す。
-func (s *Server) handleSay(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+func (s *Server) handleSay(c *echo.Context) error {
+	id := c.Param("id")
 	var req messageRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+	if err := bindAndValidate(c, &req); err != nil {
+		return writeError(c, http.StatusBadRequest, err)
 	}
-	if req.Message == "" {
-		writeError(w, http.StatusBadRequest, errors.New("message は必須です"))
-		return
-	}
-	turn, err := s.Agent.Say(r.Context(), id, req.Message)
+	turn, err := s.Agent.Say(c.Request().Context(), id, req.Message)
 	if err != nil {
-		writeSessionError(w, err)
-		return
+		return writeSessionError(c, err)
 	}
-	writeJSON(w, http.StatusOK, turn)
+	return writeJSON(c, http.StatusOK, turn)
 }
 
 // handleAnswer は選択 UI で得た回答を返して対話を再開する（FR-CHT-1）。
-func (s *Server) handleAnswer(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+func (s *Server) handleAnswer(c *echo.Context) error {
+	id := c.Param("id")
 	var req answerRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+	if err := bindAndValidate(c, &req); err != nil {
+		return writeError(c, http.StatusBadRequest, err)
 	}
-	if len(req.Answers) == 0 {
-		writeError(w, http.StatusBadRequest, errors.New("answers は必須です"))
-		return
-	}
-	turn, err := s.Agent.Answer(r.Context(), id, req.Answers)
+	turn, err := s.Agent.Answer(c.Request().Context(), id, req.Answers)
 	if err != nil {
-		writeSessionError(w, err)
-		return
+		return writeSessionError(c, err)
 	}
-	writeJSON(w, http.StatusOK, turn)
+	return writeJSON(c, http.StatusOK, turn)
 }
 
-func writeSessionError(w http.ResponseWriter, err error) {
+func writeSessionError(c *echo.Context, err error) error {
 	if errors.Is(err, intake.ErrSessionNotFound) {
-		writeError(w, http.StatusNotFound, err)
-		return
+		return writeError(c, http.StatusNotFound, err)
 	}
-	writeError(w, http.StatusInternalServerError, err)
+	return writeError(c, http.StatusInternalServerError, err)
 }

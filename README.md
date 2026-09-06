@@ -57,6 +57,9 @@ GEMINI_API_KEY=... go run ./cmd/server -allowed-origins https://app.example.com
 # 簡易モード: CDN を使わず cmd/server 自身に配信させる場合
 cd web && npm run build && cd ..
 go run ./cmd/server -static-dir web/dist
+
+# 対話セッションの保存先を DynamoDB にする（本番ホスティング = AWS。ADR-0020）
+GEMINI_API_KEY=... go run ./cmd/server -session-store dynamodb -dynamodb-session-table my-sessions
 ```
 
 LLM は経由しない。IR JSON さえあれば図と見積もりが出る。
@@ -86,6 +89,7 @@ AWS_PRICING_MCP_E2E=1 go test ./internal/cost/ -run E2E -v
 | M5 | intake agent + 選択 UI | 完了（tool interrupt による選択肢での問い返し） |
 | M6 | サーバーレス 4 サービス追加 | 完了（Lambda / ECS(Fargate) / API Gateway / DynamoDB） |
 | M7 | Web サービス化 | 完了（`cmd/server` + `internal/webapi` + `web/`）。認証（FR-WEB-5）は未対応 |
+| M8 | API 実装の刷新 + ホスティング先決定 | 完了（Echo v5 + go-validator v10 + DynamoDB セッションストア。ホスティング先は AWS サーバーレス構成に決定。[ADR-0019](docs/adr/0019-echo-v5-validator-v10-dynamodb-session-store.md) / [ADR-0020](docs/adr/0020-aws-serverless-hosting.md)） |
 
 ## パッケージ構成
 

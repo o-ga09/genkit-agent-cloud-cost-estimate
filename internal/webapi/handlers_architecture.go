@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/estimateflow"
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/ir"
 )
 
 type saveArchitectureRequest struct {
-	Architecture json.RawMessage `json:"architecture"`
+	Architecture json.RawMessage `json:"architecture" validate:"required"`
 }
 
 type saveArchitectureResponse struct {
@@ -53,71 +55,61 @@ var downloadableFormats = []estimateflow.Format{
 //
 // 保存の前に catalog でバリデーションする。ここを通れば
 // 生成物づくりに使ってよい構成であることが保証される。
-func (s *Server) handleSaveArchitecture(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSaveArchitecture(c *echo.Context) error {
 	var req saveArchitectureRequest
-	if err := decodeBody(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+	if err := bindAndValidate(c, &req); err != nil {
+		return writeError(c, http.StatusBadRequest, err)
 	}
 	arch, err := ir.Decode(bytes.NewReader(req.Architecture))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+		return writeError(c, http.StatusBadRequest, err)
 	}
 	if err := arch.Validate(s.Catalog); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
+		return writeError(c, http.StatusBadRequest, err)
 	}
 
 	rec := &ArchitectureRecord{ID: s.newID(), Architecture: arch, CreatedAt: s.now()}
-	if err := s.Store.Save(r.Context(), rec); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	if err := s.Store.Save(c.Request().Context(), rec); err != nil {
+		return writeError(c, http.StatusInternalServerError, err)
 	}
-	writeJSON(w, http.StatusCreated, saveArchitectureResponse{ID: rec.ID, Architecture: rec.Architecture})
+	return writeJSON(c, http.StatusCreated, saveArchitectureResponse{ID: rec.ID, Architecture: rec.Architecture})
 }
 
 // handleLoadArchitecture は保存済み構成を返す（パーマリンクの表示用）。
-func (s *Server) handleLoadArchitecture(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	rec, err := s.Store.Load(r.Context(), id)
+func (s *Server) handleLoadArchitecture(c *echo.Context) error {
+	id := c.Param("id")
+	rec, err := s.Store.Load(c.Request().Context(), id)
 	if err != nil {
-		writeArchitectureError(w, err)
-		return
+		return writeArchitectureError(c, err)
 	}
-	writeJSON(w, http.StatusOK, rec)
+	return writeJSON(c, http.StatusOK, rec)
 }
 
 // handleEstimate は保存済み構成から成果物一式を作る（FR-WEB-3: 再見積もり）。
 // 中身は LLM を通さない estimateflow.Run そのもの（NFR-3）。
-func (s *Server) handleEstimate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	rec, err := s.Store.Load(r.Context(), id)
+func (s *Server) handleEstimate(c *echo.Context) error {
+	id := c.Param("id")
+	rec, err := s.Store.Load(c.Request().Context(), id)
 	if err != nil {
-		writeArchitectureError(w, err)
-		return
+		return writeArchitectureError(c, err)
 	}
 
 	var req estimateRequest
-	if r.ContentLength != 0 {
-		if err := decodeBody(r, &req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
-			return
-		}
+	if err := bindAndValidate(c, &req); err != nil {
+		return writeError(c, http.StatusBadRequest, err)
 	}
 	formats := make([]estimateflow.Format, 0, len(req.Formats))
 	for _, f := range req.Formats {
 		formats = append(formats, estimateflow.Format(f))
 	}
 
-	resp, err := s.Estimator.Run(r.Context(), &estimateflow.Request{
+	resp, err := s.Estimator.Run(c.Request().Context(), &estimateflow.Request{
 		Architecture: rec.Architecture,
 		Formats:      formats,
 		BaseName:     id,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+		return writeError(c, http.StatusInternalServerError, err)
 	}
 
 	out := estimateResponse{Region: resp.Region, Lines: resp.Lines, FailedLines: resp.FailedLines}
@@ -129,51 +121,44 @@ func (s *Server) handleEstimate(w http.ResponseWriter, r *http.Request) {
 			DownloadURL: fmt.Sprintf("/api/architectures/%s/artifacts/%s", id, a.Format),
 		})
 	}
-	writeJSON(w, http.StatusOK, out)
+	return writeJSON(c, http.StatusOK, out)
 }
 
 // handleDownloadArtifact は成果物を 1 つだけダウンロードさせる（FR-WEB-2）。
 //
 // 成果物のバイト列は保存せず、保存済み IR から都度作り直す。IR さえあれば
 // 決定的に再生成できるため（NFR-1 / NFR-3）、キャッシュを持つ必要がない。
-func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	format := estimateflow.Format(r.PathValue("format"))
+func (s *Server) handleDownloadArtifact(c *echo.Context) error {
+	id := c.Param("id")
+	format := estimateflow.Format(c.Param("format"))
 	if !slices.Contains(downloadableFormats, format) {
-		writeError(w, http.StatusBadRequest, fmt.Errorf("未対応の形式です: %q", format))
-		return
+		return writeError(c, http.StatusBadRequest, fmt.Errorf("未対応の形式です: %q", format))
 	}
 
-	rec, err := s.Store.Load(r.Context(), id)
+	rec, err := s.Store.Load(c.Request().Context(), id)
 	if err != nil {
-		writeArchitectureError(w, err)
-		return
+		return writeArchitectureError(c, err)
 	}
 
-	resp, err := s.Estimator.Run(r.Context(), &estimateflow.Request{
+	resp, err := s.Estimator.Run(c.Request().Context(), &estimateflow.Request{
 		Architecture: rec.Architecture,
 		Formats:      []estimateflow.Format{format},
 		BaseName:     id,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+		return writeError(c, http.StatusInternalServerError, err)
 	}
 	if len(resp.Artifacts) == 0 {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("成果物を作れませんでした: %q", format))
-		return
+		return writeError(c, http.StatusInternalServerError, fmt.Errorf("成果物を作れませんでした: %q", format))
 	}
 	artifact := resp.Artifacts[0]
-	w.Header().Set("Content-Type", artifact.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", artifact.Filename))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(artifact.Content)
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", artifact.Filename))
+	return c.Blob(http.StatusOK, artifact.ContentType, artifact.Content)
 }
 
-func writeArchitectureError(w http.ResponseWriter, err error) {
+func writeArchitectureError(c *echo.Context, err error) error {
 	if errors.Is(err, ErrArchitectureNotFound) {
-		writeError(w, http.StatusNotFound, err)
-		return
+		return writeError(c, http.StatusNotFound, err)
 	}
-	writeError(w, http.StatusInternalServerError, err)
+	return writeError(c, http.StatusInternalServerError, err)
 }

@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
 	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/labstack/echo/v5"
 
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/catalog"
 	"github.com/o-ga09/genkit-agent-cloud-cost-estimate/internal/estimateflow"
@@ -39,7 +41,13 @@ func (f FlowEstimator) Run(ctx context.Context, req *estimateflow.Request) (*est
 	return estimateflow.Run(ctx, f.Deps, req)
 }
 
-// Server は Web サービスの HTTP 層（ADR-0010）。
+// validate はリクエスト DTO の struct tag（`validate:"..."`）を検証する共通インスタンス。
+// go-playground/validator は goroutine セーフで、構造体タグをリフレクションで
+// キャッシュするためインスタンスは使い回す。
+var validate = validator.New()
+
+// Server は Web サービスの HTTP 層（ADR-0010）。ルーティングと Bind/Validate は
+// Echo（github.com/labstack/echo/v5）+ go-validator（v10）を使う。
 //
 // 認証は現時点で実装していない（FR-WEB-5 は未対応。requirements.md の
 // 未決事項「Web サービスの認証方式」が決まり次第、Routes() の手前に
@@ -94,21 +102,20 @@ func (s *Server) now() time.Time {
 // フロントエンドと別オリジンで動かす前提（オブジェクトストレージ + CDN 配信）のため、
 // 静的ファイルはここでは配信しない。API 専用のハンドラだけを持つ。
 func (s *Server) Routes() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", handleHealthz)
-	mux.HandleFunc("POST /api/sessions", s.handleStartSession)
-	mux.HandleFunc("POST /api/sessions/{id}/messages", s.handleSay)
-	mux.HandleFunc("POST /api/sessions/{id}/answers", s.handleAnswer)
-	mux.HandleFunc("POST /api/architectures", s.handleSaveArchitecture)
-	mux.HandleFunc("GET /api/architectures/{id}", s.handleLoadArchitecture)
-	mux.HandleFunc("POST /api/architectures/{id}/estimate", s.handleEstimate)
-	mux.HandleFunc("GET /api/architectures/{id}/artifacts/{format}", s.handleDownloadArtifact)
-	return s.withCORS(mux)
+	e := echo.New()
+	e.GET("/healthz", handleHealthz)
+	e.POST("/api/sessions", s.handleStartSession)
+	e.POST("/api/sessions/:id/messages", s.handleSay)
+	e.POST("/api/sessions/:id/answers", s.handleAnswer)
+	e.POST("/api/architectures", s.handleSaveArchitecture)
+	e.GET("/api/architectures/:id", s.handleLoadArchitecture)
+	e.POST("/api/architectures/:id/estimate", s.handleEstimate)
+	e.GET("/api/architectures/:id/artifacts/:format", s.handleDownloadArtifact)
+	return s.withCORS(e)
 }
 
-func handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
+func handleHealthz(c *echo.Context) error {
+	return c.String(http.StatusOK, "ok")
 }
 
 // withCORS はフロントエンドが別オリジン（S3 / R2 + CDN 等）から叩けるように
@@ -116,6 +123,9 @@ func handleHealthz(w http.ResponseWriter, _ *http.Request) {
 //
 // CORS はアクセス制御ではなくブラウザ側の読み取り許可の仕組みでしかない
 // （FR-WEB-5 の認証の代わりにはならない）。認証は別途必要になる。
+//
+// Echo の *echo.Echo は http.Handler（ServeHTTP）を実装するため、ルーター本体を
+// 素の net/http ミドルウェアで包める。
 func (s *Server) withCORS(h http.Handler) http.Handler {
 	if len(s.AllowedOrigins) == 0 {
 		return h
@@ -141,20 +151,26 @@ func (s *Server) withCORS(h http.Handler) http.Handler {
 	})
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, status int, err error) {
-	writeJSON(w, status, map[string]string{"error": err.Error()})
-}
-
-func decodeBody(r *http.Request, v any) error {
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(v); err != nil {
-		return fmt.Errorf("リクエストボディの JSON を読み込めませんでした: %w", err)
+// bindAndValidate はリクエストボディを Echo の Bind で構造体にデコードし、
+// go-validator（構造体タグ `validate:"..."`）で必須項目などを検証する。
+// ボディが空（GET や省略可能な JSON ボディ）の場合は Bind をスキップし、
+// ゼロ値のまま検証だけ行う。
+func bindAndValidate(c *echo.Context, v any) error {
+	if c.Request().ContentLength != 0 {
+		if err := c.Bind(v); err != nil {
+			return fmt.Errorf("リクエストボディの JSON を読み込めませんでした: %w", err)
+		}
+	}
+	if err := validate.Struct(v); err != nil {
+		return err
 	}
 	return nil
+}
+
+func writeJSON(c *echo.Context, status int, v any) error {
+	return c.JSON(status, v)
+}
+
+func writeError(c *echo.Context, status int, err error) error {
+	return c.JSON(status, map[string]string{"error": err.Error()})
 }

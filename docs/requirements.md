@@ -173,6 +173,7 @@
 | 出力の配布形態 | Web サービス | [ADR-0010](adr/0010-web-service-as-delivery-form.md) |
 | GCP 対応 | AWS 先行。抽象のみ用意 | [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md) |
 | データ転送のモデル化 | インターネット egress と AZ 間の 2 経路のみ | [ADR-0011](adr/0011-aws-first-and-limited-data-transfer-model.md) |
+| ホスティング先 | AWS（サーバーレス: API Gateway + Lambda + DynamoDB + S3 + CloudFront + Cognito） | [ADR-0020](adr/0020-aws-serverless-hosting.md) |
 
 未決のまま残っている項目:
 
@@ -187,7 +188,9 @@
   * 暫定で MVP では未実装（[ADR-0016](adr/0016-react-frontend-with-no-mvp-auth.md)）。
     `internal/webapi.Server` は方式が決まり次第ミドルウェアとして差し込める形にしてある。
     それまでのセルフホストはリバースプロキシ側でのアクセス制御を前提とする
-* [ ] **ホスティング先**（Cloud Run / ECS / その他）
+  * [ADR-0020](adr/0020-aws-serverless-hosting.md) でホスティング先を AWS に決めた際、
+    コスト試算にはコンポーネント候補として Amazon Cognito を含めた。ただし認証方式そのものの
+    採否はこの ADR では決定していない
 * [ ] **保存した IR の保持期間とアクセス制御**（作成者のみか、リンクを知る人全員か）
 * [x] **使用する LLM モデルの確定** → `googleai/gemini-flash-latest`（googlegenai プラグイン）。
   `intake.Options.Model` で差し替えられる
