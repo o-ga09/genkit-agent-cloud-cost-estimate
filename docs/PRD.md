@@ -163,6 +163,7 @@ M1〜M3 が動けば、LLM 抜きでも「JSON を書けば図と Excel が出�
 | M4 | estimate Flow | M1〜M3 を Genkit の Flow として結合する |
 | M5 | intake agent + 選択 UI | チャットと tool interrupt による構成ヒアリングが動く |
 | M6 | サーバーレス 4 サービス追加 | Lambda / ECS / API Gateway / DynamoDB の catalog を追加する |
+| M7 | Web サービス化 | ブラウザからチャット + 選択 UI で相談し、成果物をダウンロードできる（FR-WEB-1〜4）。認証（FR-WEB-5）は未決事項のため対象外 |
 
 ## 10. リスク
 

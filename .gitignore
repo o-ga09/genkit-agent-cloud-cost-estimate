@@ -20,11 +20,18 @@ vendor/
 # テストのゴールデンファイルは生成物ではなく、レビュー対象として追跡する
 !**/testdata/**
 
+# フロントエンド（web/）のアセットは生成物ではないので上の *.svg 等の対象から外す
+!web/public/**
+!web/src/assets/**
+
 # 環境変数・認証情報
 .env
 .env.*
 !.env.example
 credentials.json
+
+# Web サービスが保存する構成データ（FR-WEB-3）。ローカル開発の既定保存先
+.data/
 
 # エディタ・OS
 .DS_Store
